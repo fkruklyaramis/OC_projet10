@@ -75,3 +75,64 @@ class User(AbstractUser):
         verbose_name = "Utilisateur"
         verbose_name_plural = "Utilisateurs"
         ordering = ['-created_time']
+
+
+class Project(models.Model):
+    """
+    Modèle Project - Définit les projets d'une application cliente
+    """
+    TYPE_CHOICES = [
+        ('backend', 'Back-end'),
+        ('frontend', 'Front-end'),
+        ('ios', 'iOS'),
+        ('android', 'Android'),
+    ]
+
+    name = models.CharField(max_length=255, verbose_name="Nom du projet")
+    description = models.TextField(verbose_name="Description")
+    type = models.CharField(max_length=20, choices=TYPE_CHOICES, verbose_name="Type")
+    author = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='authored_projects',
+        verbose_name="Auteur"
+    )
+    created_time = models.DateTimeField(auto_now_add=True, verbose_name="Date de création")
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        verbose_name = "Projet"
+        verbose_name_plural = "Projets"
+        ordering = ['-created_time']
+
+
+class Contributor(models.Model):
+    """
+    Modèle Contributor - Lie un utilisateur à un projet
+    Un utilisateur peut contribuer à plusieurs projets
+    Un projet peut avoir plusieurs contributeurs
+    """
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='contributions',
+        verbose_name="Utilisateur"
+    )
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.CASCADE,
+        related_name='contributors',
+        verbose_name="Projet"
+    )
+    created_time = models.DateTimeField(auto_now_add=True, verbose_name="Date d'ajout")
+
+    class Meta:
+        verbose_name = "Contributeur"
+        verbose_name_plural = "Contributeurs"
+        unique_together = ('user', 'project')  # Un utilisateur ne peut être contributeur qu'une fois par projet
+        ordering = ['-created_time']
+
+    def __str__(self):
+        return f"{self.user.username} - {self.project.name}"
