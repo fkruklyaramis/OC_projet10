@@ -1,10 +1,17 @@
+"""
+Vues de l'API SoftDesk
+Gère l'authentification, les projets, contributeurs, issues et commentaires
+Documentation Swagger externalisée dans swagger_docs.py
+"""
+
 from rest_framework import status, generics, viewsets, permissions
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
-from drf_yasg.utils import swagger_auto_schema
-from drf_yasg import openapi
+from django.utils import timezone
+from django.shortcuts import get_object_or_404
+
 from .models import User, Project, Contributor, Issue, Comment
 from .serializers import (
     UserSerializer, LoginSerializer, ProjectSerializer,
@@ -13,42 +20,55 @@ from .serializers import (
     CommentSerializer, CommentCreateSerializer, CommentUpdateSerializer
 )
 
+# Import de la documentation Swagger
+from .swagger_docs import (
+    register_docs, login_docs, profile_docs,
+    project_list_docs, project_create_docs, project_retrieve_docs,
+    project_update_docs, project_partial_update_docs, project_destroy_docs,
+    contributor_list_docs, contributor_add_docs, contributor_remove_docs,
+    issue_list_docs, issue_create_docs, issue_retrieve_docs,
+    issue_update_docs, issue_partial_update_docs, issue_destroy_docs,
+    comment_list_docs, comment_create_docs, comment_retrieve_docs,
+    comment_update_docs, comment_partial_update_docs, comment_destroy_docs,
+    rgpd_export_docs, rgpd_delete_docs
+)
+
+
+# ================================
+# PERMISSIONS PERSONNALISÉES
+# ================================
+
+class IsContributor(permissions.BasePermission):
+    """SECURITY: Permission - seuls les contributeurs du projet peuvent accéder"""
+
+    def has_object_permission(self, request, view, obj):
+        if hasattr(obj, 'project'):
+            project = obj.project
+        else:
+            project = obj
+        return project.contributors.filter(user=request.user).exists()
+
+
+class IsAuthorOrReadOnly(permissions.BasePermission):
+    """SECURITY: Permission - seul l'auteur peut modifier, lecture pour les autres"""
+
+    def has_object_permission(self, request, view, obj):
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        return obj.author == request.user
+
+
+# ================================
+# AUTHENTIFICATION
+# ================================
 
 class RegisterView(generics.CreateAPIView):
-    """
-    Inscription d'un nouvel utilisateur avec génération automatique de tokens JWT
-    """
+    """Inscription d'un nouvel utilisateur avec génération automatique de tokens JWT"""
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [AllowAny]
 
-    @swagger_auto_schema(
-        operation_summary="Inscription d'un nouvel utilisateur",
-        operation_description="""
-        Crée un compte utilisateur et retourne automatiquement les tokens JWT.
-        L'utilisateur doit avoir au moins 15 ans (contrôle par date de naissance).
-        """,
-        responses={
-            201: openapi.Response(
-                description="Utilisateur créé avec succès",
-                examples={
-                    "application/json": {
-                        "user": {
-                            "id": 1,
-                            "username": "alice",
-                            "email": "alice@example.com",
-                            "first_name": "Alice",
-                            "last_name": "Dupont"
-                        },
-                        "refresh": "eyJ0eXAiOiJKV1QiLCJhbGc...",
-                        "access": "eyJ0eXAiOiJKV1QiLCJhbGc..."
-                    }
-                }
-            ),
-            400: "Données invalides (âge < 15 ans, email déjà utilisé, etc.)"
-        },
-        tags=['Authentication']
-    )
+    @register_docs
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -64,36 +84,11 @@ class RegisterView(generics.CreateAPIView):
         }, status=status.HTTP_201_CREATED)
 
 
-@swagger_auto_schema(
-    method='post',
-    operation_summary="Connexion utilisateur",
-    operation_description="Authentifie un utilisateur et retourne les tokens JWT",
-    request_body=LoginSerializer,
-    responses={
-        200: openapi.Response(
-            description="Connexion réussie",
-            examples={
-                "application/json": {
-                    "user": {
-                        "id": 1,
-                        "username": "alice",
-                        "email": "alice@example.com"
-                    },
-                    "refresh": "eyJ0eXAiOiJKV1QiLCJhbGc...",
-                    "access": "eyJ0eXAiOiJKV1QiLCJhbGc..."
-                }
-            }
-        ),
-        400: "Identifiants invalides"
-    },
-    tags=['Authentication']
-)
+@login_docs
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def login_view(request):
-    """
-    Connexion utilisateur avec génération de tokens JWT
-    """
+    """Connexion utilisateur avec génération de tokens JWT"""
     serializer = LoginSerializer(data=request.data)
     if serializer.is_valid():
         user = serializer.validated_data['user']
@@ -108,453 +103,290 @@ def login_view(request):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-@swagger_auto_schema(
-    method='get',
-    operation_summary="Profil utilisateur connecté",
-    operation_description="Retourne les informations de l'utilisateur authentifié",
-    responses={
-        200: UserSerializer,
-        401: "Token manquant ou invalide"
-    },
-    tags=['Authentication']
-)
+@profile_docs
 @api_view(['GET'])
 def user_profile(request):
-    """
-    Profil de l'utilisateur connecté
-    """
+    """Profil de l'utilisateur connecté"""
     serializer = UserSerializer(request.user)
     return Response(serializer.data)
 
 
-class IsAuthorOrReadOnly(permissions.BasePermission):
-    """
-    Permission personnalisée : seul l'auteur peut modifier/supprimer
-    """
-    def has_object_permission(self, request, view, obj):
-        # Lecture pour tous les contributeurs
-        if request.method in permissions.SAFE_METHODS:
-            return True
-        # Écriture seulement pour l'auteur
-        return obj.author == request.user
-
-
-class IsContributor(permissions.BasePermission):
-    """
-    Permission personnalisée : seuls les contributeurs peuvent accéder
-    """
-    def has_permission(self, request, view):
-        if view.action == 'create':
-            return True  # Pour créer un projet
-        return True
-
-    def has_object_permission(self, request, view, obj):
-        # Vérifier si l'utilisateur est contributeur du projet
-        if hasattr(obj, 'project'):  # Pour Issue et Comment
-            project = obj.project
-        else:  # Pour Project
-            project = obj
-
-        return project.contributors.filter(user=request.user).exists()
-
+# ================================
+# PROJETS
+# ================================
 
 class ProjectViewSet(viewsets.ModelViewSet):
-    """
-    ViewSet pour la gestion complète des projets collaboratifs
-    """
+    """ViewSet pour la gestion complète des projets collaboratifs"""
     serializer_class = ProjectSerializer
     permission_classes = [permissions.IsAuthenticated, IsContributor, IsAuthorOrReadOnly]
 
-    @swagger_auto_schema(
-        operation_summary="Liste des projets",
-        operation_description="Retourne la liste des projets où l'utilisateur est contributeur",
-        responses={200: ProjectSerializer(many=True)},
-        tags=['Projects']
-    )
+    def get_queryset(self):
+        """OPTIMISATION: Requêtes optimisées avec select_related et prefetch_related"""
+        return Project.objects.filter(
+            contributors__user=self.request.user
+        ).select_related('author').prefetch_related(
+            'contributors__user',
+            'issues__author',
+            'issues__assignee',
+            'issues__comments__author'
+        ).distinct()
+
+    @project_list_docs
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
 
-    @swagger_auto_schema(
-        operation_summary="Créer un projet",
-        operation_description="""
-        Crée un nouveau projet. L'utilisateur devient automatiquement
-        auteur et contributeur du projet.
-        """,
-        responses={
-            201: ProjectSerializer,
-            400: "Données invalides"
-        },
-        tags=['Projects']
-    )
+    @project_create_docs
     def create(self, request, *args, **kwargs):
-        return super().create(request, *args, **kwargs)
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
 
-    @swagger_auto_schema(
-        operation_summary="Détail d'un projet",
-        operation_description="Affiche les détails d'un projet (contributeurs uniquement)",
-        responses={
-            200: ProjectSerializer,
-            403: "Accès refusé (non-contributeur)",
-            404: "Projet non trouvé"
-        },
-        tags=['Projects']
-    )
+        # L'utilisateur connecté devient l'auteur
+        project = serializer.save(author=request.user)
+
+        # Ajouter l'auteur comme contributeur
+        Contributor.objects.create(project=project, user=request.user)
+
+        return Response(
+            ProjectSerializer(project).data,
+            status=status.HTTP_201_CREATED
+        )
+
+    @project_retrieve_docs
     def retrieve(self, request, *args, **kwargs):
         return super().retrieve(request, *args, **kwargs)
 
-    @swagger_auto_schema(
-        operation_summary="Modifier un projet",
-        operation_description="Modifie un projet (auteur uniquement)",
-        responses={
-            200: ProjectSerializer,
-            403: "Accès refusé (non-auteur)",
-            404: "Projet non trouvé"
-        },
-        tags=['Projects']
-    )
+    @project_update_docs
     def update(self, request, *args, **kwargs):
         return super().update(request, *args, **kwargs)
 
-    @swagger_auto_schema(
-        operation_summary="Supprimer un projet",
-        operation_description="Supprime définitivement un projet (auteur uniquement)",
-        responses={
-            204: "Projet supprimé",
-            403: "Accès refusé (non-auteur)",
-            404: "Projet non trouvé"
-        },
-        tags=['Projects']
-    )
+    @project_partial_update_docs
+    def partial_update(self, request, *args, **kwargs):
+        return super().partial_update(request, *args, **kwargs)
+
+    @project_destroy_docs
     def destroy(self, request, *args, **kwargs):
         return super().destroy(request, *args, **kwargs)
 
-    def get_queryset(self):
-        # Un utilisateur ne voit que les projets où il est contributeur
-        return Project.objects.filter(contributors__user=self.request.user).distinct()
 
-    @swagger_auto_schema(
-        operation_summary="Liste des contributeurs",
-        operation_description="Affiche tous les contributeurs d'un projet",
-        responses={200: ContributorSerializer(many=True)},
-        tags=['Contributors']
-    )
-    def contributors(self, request, pk=None):
-        """
-        Liste des contributeurs d'un projet
-        Route : GET /api/projects/{pk}/contributors/
-        """
-        project = self.get_object()
-        contributors = project.contributors.all()
-        serializer = ContributorSerializer(contributors, many=True)
-        return Response(serializer.data)
+# ================================
+# CONTRIBUTEURS
+# ================================
 
-    @swagger_auto_schema(
-        operation_summary="Ajouter un contributeur",
-        operation_description="Ajoute un utilisateur comme contributeur (auteur uniquement)",
-        request_body=ContributorCreateSerializer,
-        responses={
-            201: ContributorSerializer,
-            400: "Utilisateur inexistant ou déjà contributeur",
-            403: "Accès refusé (non-auteur)"
-        },
-        tags=['Contributors']
-    )
-    def add_contributor(self, request, pk=None):
-        """
-        Ajouter un contributeur à un projet (seul l'auteur peut le faire)
-        """
-        project = self.get_object()
-
-        # Vérifier que seul l'auteur peut ajouter des contributeurs
-        if project.author != request.user:
-            return Response(
-                {"error": "Seul l'auteur peut ajouter des contributeurs"},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        # Passer le projet dans le contexte du serializer
-        serializer = ContributorCreateSerializer(
-            data=request.data,
-            context={'project': project}
-        )
-
-        if serializer.is_valid():
-            contributor = serializer.save()
-            # Retourner les données du contributeur créé
-            return Response(
-                ContributorSerializer(contributor).data,
-                status=status.HTTP_201_CREATED
-            )
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    @swagger_auto_schema(
-        operation_summary="Retirer un contributeur",
-        operation_description="Retire un contributeur du projet (auteur uniquement)",
-        responses={
-            204: "Contributeur retiré",
-            400: "Impossible de retirer l'auteur",
-            403: "Accès refusé (non-auteur)",
-            404: "Contributeur non trouvé"
-        },
-        tags=['Contributors']
-    )
-    def remove_contributor(self, request, pk=None, user_id=None):
-        """
-        Retirer un contributeur d'un projet (seul l'auteur peut le faire)
-        Utilise user_id depuis l'URL : /api/projects/{pk}/contributors/{user_id}/
-        """
-        project = self.get_object()
-
-        # Vérifier que seul l'auteur peut retirer des contributeurs
-        if project.author != request.user:
-            return Response(
-                {"error": "Seul l'auteur peut retirer des contributeurs"},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        try:
-            contributor = project.contributors.get(user_id=user_id)
-            # Empêcher la suppression de l'auteur
-            if contributor.user == project.author:
-                return Response(
-                    {"error": "L'auteur ne peut pas être retiré du projet"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            contributor.delete()
-            return Response(status=status.HTTP_204_NO_CONTENT)
-        except Contributor.DoesNotExist:
-            return Response(
-                {"error": "Contributeur non trouvé"},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-
-class IssueViewSet(viewsets.ModelViewSet):
-    """
-    ViewSet pour la gestion des issues/tâches d'un projet
-    """
+class ContributorViewSet(viewsets.ModelViewSet):
+    """ViewSet pour la gestion des contributeurs d'un projet"""
+    serializer_class = ContributorSerializer
     permission_classes = [permissions.IsAuthenticated, IsContributor]
 
-    def get_serializer_class(self):
-        """
-        Retourne le bon serializer selon l'action
-        """
-        if self.action == 'create':
-            return IssueCreateSerializer
-        elif self.action in ['update', 'partial_update']:
-            return IssueUpdateSerializer
-        return IssueSerializer
-
     def get_queryset(self):
-        """
-        Filtrer les issues par projet et s'assurer que l'utilisateur est contributeur
-        """
-        project_id = self.kwargs.get('project_pk')
-        try:
-            project = Project.objects.get(pk=project_id)
-            # Vérifier que l'utilisateur est contributeur
-            if not project.contributors.filter(user=self.request.user).exists():
-                return Issue.objects.none()
-            return project.issues.all()
-        except Project.DoesNotExist:
-            return Issue.objects.none()
+        """OPTIMISATION: Requêtes optimisées"""
+        project_id = self.kwargs['project_pk']
+        return Contributor.objects.filter(
+            project_id=project_id
+        ).select_related('user', 'project')
 
     def get_project(self):
-        """
-        Récupère le projet depuis l'URL et vérifie les permissions
-        """
-        project_id = self.kwargs.get('project_pk')
-        try:
-            project = Project.objects.get(pk=project_id)
-            # Vérifier que l'utilisateur est contributeur
-            if not project.contributors.filter(user=self.request.user).exists():
-                raise PermissionError("Vous n'êtes pas contributeur de ce projet.")
-            return project
-        except Project.DoesNotExist:
-            raise Project.DoesNotExist("Le projet n'existe pas.")
+        """Récupère le projet et vérifie les permissions"""
+        project_id = self.kwargs['project_pk']
+        project = get_object_or_404(Project, id=project_id)
 
-    def get_serializer_context(self):
-        """
-        Ajoute le projet au contexte du serializer
-        """
-        context = super().get_serializer_context()
-        try:
-            context['project'] = self.get_project()
-        except (Project.DoesNotExist, PermissionError):
-            pass
-        return context
+        # SECURITY: Vérifier que l'utilisateur est contributeur
+        if not project.contributors.filter(user=self.request.user).exists():
+            raise PermissionError("Vous n'êtes pas contributeur de ce projet")
 
-    @swagger_auto_schema(
-        operation_summary="Liste des issues d'un projet",
-        operation_description="Retourne toutes les issues d'un projet (contributeurs uniquement)",
-        responses={200: IssueSerializer(many=True)},
-        tags=['Issues']
-    )
+        return project
+
+    @contributor_list_docs
     def list(self, request, *args, **kwargs):
-        """
-        Liste des issues d'un projet
-        Route : GET /api/projects/{project_id}/issues/
-        """
         try:
-            project = self.get_project()
-            issues = self.get_queryset()
-            serializer = self.get_serializer(issues, many=True)
-            return Response({
-                'project': project.name,
-                'issues_count': issues.count(),
-                'issues': serializer.data
-            })
-        except Project.DoesNotExist:
-            return Response(
-                {"error": "Projet non trouvé"},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            self.get_project()
+            return super().list(request, *args, **kwargs)
         except PermissionError as e:
             return Response(
                 {"error": str(e)},
                 status=status.HTTP_403_FORBIDDEN
             )
 
-    @swagger_auto_schema(
-        operation_summary="Créer une issue",
-        operation_description="""
-        Crée une nouvelle issue dans un projet.
-        L'assigné doit être un contributeur du projet.
-        """,
-        request_body=IssueCreateSerializer,
-        responses={
-            201: IssueSerializer,
-            400: "Données invalides ou assigné non-contributeur",
-            403: "Accès refusé (non-contributeur)"
-        },
-        tags=['Issues']
-    )
+    @contributor_add_docs
     def create(self, request, *args, **kwargs):
-        """
-        Créer une nouvelle issue
-        Route : POST /api/projects/{project_id}/issues/
-        """
+        try:
+            project = self.get_project()
+
+            # SECURITY: Seul l'auteur peut ajouter des contributeurs
+            if project.author != request.user:
+                return Response(
+                    {"error": "Seul l'auteur du projet peut ajouter des contributeurs"},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+            serializer = ContributorCreateSerializer(data=request.data)
+            if serializer.is_valid():
+                serializer.save(project=project)
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        except PermissionError as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+    @contributor_remove_docs
+    def destroy(self, request, *args, **kwargs):
+        try:
+            project = self.get_project()
+
+            # SECURITY: Seul l'auteur peut retirer des contributeurs
+            if project.author != request.user:
+                return Response(
+                    {"error": "Seul l'auteur du projet peut retirer des contributeurs"},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+            contributor = self.get_object()
+
+            # Empêcher la suppression de l'auteur
+            if contributor.user == project.author:
+                return Response(
+                    {"error": "L'auteur du projet ne peut pas être retiré"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            contributor.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        except PermissionError as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+
+# ================================
+# ISSUES
+# ================================
+
+class IssueViewSet(viewsets.ModelViewSet):
+    """ViewSet pour la gestion des issues dans un projet"""
+    serializer_class = IssueSerializer
+    permission_classes = [permissions.IsAuthenticated, IsContributor]
+
+    def get_queryset(self):
+        """OPTIMISATION: Requêtes optimisées"""
+        project_id = self.kwargs['project_pk']
+        return Issue.objects.filter(
+            project_id=project_id
+        ).select_related('author', 'assignee', 'project').prefetch_related('comments')
+
+    def get_project(self):
+        """Récupère le projet et vérifie les permissions"""
+        project_id = self.kwargs['project_pk']
+        project = get_object_or_404(Project, id=project_id)
+
+        # SECURITY: Vérifier que l'utilisateur est contributeur
+        if not project.contributors.filter(user=self.request.user).exists():
+            raise PermissionError("Vous n'êtes pas contributeur de ce projet")
+
+        return project
+
+    @issue_list_docs
+    def list(self, request, *args, **kwargs):
         try:
             self.get_project()
-            serializer = self.get_serializer(data=request.data)
+            return super().list(request, *args, **kwargs)
+        except PermissionError as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+    @issue_create_docs
+    def create(self, request, *args, **kwargs):
+        try:
+            project = self.get_project()
+            serializer = IssueCreateSerializer(data=request.data)
 
             if serializer.is_valid():
-                issue = serializer.save()
-                # Retourner l'issue créée avec le serializer complet
+                issue = serializer.save(project=project, author=request.user)
                 return Response(
                     IssueSerializer(issue).data,
                     status=status.HTTP_201_CREATED
                 )
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        except Project.DoesNotExist:
-            return Response(
-                {"error": "Projet non trouvé"},
-                status=status.HTTP_404_NOT_FOUND
-            )
         except PermissionError as e:
             return Response(
                 {"error": str(e)},
                 status=status.HTTP_403_FORBIDDEN
             )
 
-    @swagger_auto_schema(
-        operation_summary="Détail d'une issue",
-        operation_description="Affiche les détails d'une issue spécifique",
-        responses={
-            200: IssueSerializer,
-            403: "Accès refusé (non-contributeur)",
-            404: "Issue non trouvée"
-        },
-        tags=['Issues']
-    )
+    @issue_retrieve_docs
     def retrieve(self, request, *args, **kwargs):
-        """
-        Détail d'une issue spécifique
-        Route : GET /api/projects/{project_id}/issues/{issue_id}/
-        """
         try:
             self.get_project()
-            issue = self.get_object()
-            serializer = self.get_serializer(issue)
-            return Response(serializer.data)
-        except Project.DoesNotExist:
-            return Response(
-                {"error": "Projet non trouvé"},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            return super().retrieve(request, *args, **kwargs)
         except PermissionError as e:
             return Response(
                 {"error": str(e)},
                 status=status.HTTP_403_FORBIDDEN
             )
 
-    @swagger_auto_schema(
-        operation_summary="Modifier une issue",
-        operation_description="Modifie une issue (auteur de l'issue ou du projet)",
-        request_body=IssueUpdateSerializer,
-        responses={
-            200: IssueSerializer,
-            403: "Accès refusé",
-            404: "Issue non trouvée"
-        },
-        tags=['Issues']
-    )
+    @issue_update_docs
     def update(self, request, *args, **kwargs):
-        """
-        Modifier une issue (PUT/PATCH)
-        Route : PUT/PATCH /api/projects/{project_id}/issues/{issue_id}/
-        """
         try:
             project = self.get_project()
             issue = self.get_object()
 
-            # Seul l'auteur de l'issue peut la modifier (ou l'auteur du projet)
+            # SECURITY: Seul l'auteur de l'issue peut la modifier (ou l'auteur du projet)
             if issue.author != request.user and project.author != request.user:
                 return Response(
                     {"error": "Seul l'auteur de l'issue ou du projet peut la modifier"},
                     status=status.HTTP_403_FORBIDDEN
                 )
 
-            partial = kwargs.pop('partial', False)
-            serializer = self.get_serializer(issue, data=request.data, partial=partial)
-
+            serializer = IssueUpdateSerializer(issue, data=request.data)
             if serializer.is_valid():
                 serializer.save()
                 return Response(IssueSerializer(issue).data)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        except Project.DoesNotExist:
-            return Response(
-                {"error": "Projet non trouvé"},
-                status=status.HTTP_404_NOT_FOUND
-            )
         except PermissionError as e:
             return Response(
                 {"error": str(e)},
                 status=status.HTTP_403_FORBIDDEN
             )
 
-    @swagger_auto_schema(
-        operation_summary="Supprimer une issue",
-        operation_description="Supprime définitivement une issue (auteur de l'issue ou du projet)",
-        responses={
-            204: "Issue supprimée",
-            403: "Accès refusé",
-            404: "Issue non trouvée"
-        },
-        tags=['Issues']
-    )
-    def destroy(self, request, *args, **kwargs):
-        """
-        Supprimer une issue
-        Route : DELETE /api/projects/{project_id}/issues/{issue_id}/
-        """
+    @issue_partial_update_docs
+    def partial_update(self, request, *args, **kwargs):
         try:
             project = self.get_project()
             issue = self.get_object()
 
-            # Seul l'auteur de l'issue peut la supprimer (ou l'auteur du projet)
+            # SECURITY: Seul l'auteur de l'issue peut la modifier (ou l'auteur du projet)
+            if issue.author != request.user and project.author != request.user:
+                return Response(
+                    {"error": "Seul l'auteur de l'issue ou du projet peut la modifier"},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+            serializer = IssueUpdateSerializer(issue, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(IssueSerializer(issue).data)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        except PermissionError as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+    @issue_destroy_docs
+    def destroy(self, request, *args, **kwargs):
+        try:
+            project = self.get_project()
+            issue = self.get_object()
+
+            # SECURITY: Seul l'auteur de l'issue peut la supprimer (ou l'auteur du projet)
             if issue.author != request.user and project.author != request.user:
                 return Response(
                     {"error": "Seul l'auteur de l'issue ou du projet peut la supprimer"},
@@ -564,306 +396,142 @@ class IssueViewSet(viewsets.ModelViewSet):
             issue.delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
 
-        except Project.DoesNotExist:
-            return Response(
-                {"error": "Projet non trouvé"},
-                status=status.HTTP_404_NOT_FOUND
-            )
         except PermissionError as e:
             return Response(
                 {"error": str(e)},
                 status=status.HTTP_403_FORBIDDEN
             )
 
+
+# ================================
+# COMMENTAIRES
+# ================================
 
 class CommentViewSet(viewsets.ModelViewSet):
-    """
-    ViewSet pour la gestion des commentaires d'une issue
-    - Seuls les contributeurs du projet peuvent accéder aux commentaires
-    - Seul l'auteur du commentaire peut le modifier/supprimer
-    """
+    """ViewSet pour la gestion des commentaires sur une issue"""
+    serializer_class = CommentSerializer
     permission_classes = [permissions.IsAuthenticated, IsContributor]
 
-    def get_serializer_class(self):
-        """
-        Retourne le bon serializer selon l'action
-        """
-        if self.action == 'create':
-            return CommentCreateSerializer
-        elif self.action in ['update', 'partial_update']:
-            return CommentUpdateSerializer
-        return CommentSerializer
-
-    def get_object(self):
-        """
-        Récupère un commentaire spécifique par son UUID
-        en vérifiant qu'il appartient bien au projet et à l'issue spécifiés
-        """
-        project_id = self.kwargs.get('project_pk')
-        issue_id = self.kwargs.get('issue_pk')
-        comment_id = self.kwargs.get('pk')
-
-        try:
-            # Vérifier que le projet existe et que l'utilisateur est contributeur
-            project = Project.objects.get(pk=project_id)
-            if not project.contributors.filter(user=self.request.user).exists():
-                raise PermissionError("Vous n'êtes pas contributeur de ce projet.")
-
-            # Vérifier que l'issue existe dans ce projet
-            issue = Issue.objects.get(pk=issue_id, project=project)
-
-            # Récupérer le commentaire par UUID dans cette issue
-            comment = Comment.objects.get(pk=comment_id, issue=issue)
-
-            return comment
-
-        except Project.DoesNotExist:
-            raise Project.DoesNotExist("Le projet n'existe pas.")
-        except Issue.DoesNotExist:
-            raise Issue.DoesNotExist("L'issue n'existe pas.")
-        except Comment.DoesNotExist:
-            raise Comment.DoesNotExist("Le commentaire n'existe pas.")
-
     def get_queryset(self):
-        """
-        Filtrer les commentaires par issue et s'assurer que l'utilisateur est contributeur
-        """
-        project_id = self.kwargs.get('project_pk')
-        issue_id = self.kwargs.get('issue_pk')
-
-        try:
-            project = Project.objects.get(pk=project_id)
-            issue = Issue.objects.get(pk=issue_id, project=project)
-
-            # Vérifier que l'utilisateur est contributeur
-            if not project.contributors.filter(user=self.request.user).exists():
-                return Comment.objects.none()
-
-            return issue.comments.all()
-        except (Project.DoesNotExist, Issue.DoesNotExist):
-            return Comment.objects.none()
+        """OPTIMISATION: Requêtes optimisées"""
+        issue_id = self.kwargs['issue_pk']
+        return Comment.objects.filter(
+            issue_id=issue_id
+        ).select_related('author', 'issue__project')
 
     def get_issue(self):
-        """
-        Récupère l'issue depuis l'URL et vérifie les permissions
-        """
-        project_id = self.kwargs.get('project_pk')
-        issue_id = self.kwargs.get('issue_pk')
+        """Récupère l'issue et vérifie les permissions"""
+        project_id = self.kwargs['project_pk']
+        issue_id = self.kwargs['issue_pk']
 
-        try:
-            project = Project.objects.get(pk=project_id)
-            issue = Issue.objects.get(pk=issue_id, project=project)
+        project = get_object_or_404(Project, id=project_id)
+        issue = get_object_or_404(Issue, id=issue_id, project=project)
 
-            # Vérifier que l'utilisateur est contributeur
-            if not project.contributors.filter(user=self.request.user).exists():
-                raise PermissionError("Vous n'êtes pas contributeur de ce projet.")
+        # SECURITY: Vérifier que l'utilisateur est contributeur
+        if not project.contributors.filter(user=self.request.user).exists():
+            raise PermissionError("Vous n'êtes pas contributeur de ce projet")
 
-            return issue
-        except Project.DoesNotExist:
-            raise Project.DoesNotExist("Le projet n'existe pas.")
-        except Issue.DoesNotExist:
-            raise Issue.DoesNotExist("L'issue n'existe pas.")
+        return issue
 
-    def get_serializer_context(self):
-        """
-        Ajoute l'issue au contexte du serializer
-        """
-        context = super().get_serializer_context()
-        try:
-            context['issue'] = self.get_issue()
-        except (Project.DoesNotExist, Issue.DoesNotExist, PermissionError):
-            pass
-        return context
-
-    @swagger_auto_schema(
-        operation_summary="Liste des commentaires",
-        operation_description="Affiche tous les commentaires d'une issue",
-        responses={200: CommentSerializer(many=True)},
-        tags=['Comments']
-    )
+    @comment_list_docs
     def list(self, request, *args, **kwargs):
-        """
-        Liste des commentaires d'une issue
-        Route : GET /api/projects/{project_id}/issues/{issue_id}/comments/
-        """
         try:
-            issue = self.get_issue()
-            comments = self.get_queryset()
-            serializer = self.get_serializer(comments, many=True)
-            return Response({
-                'project': issue.project.name,
-                'issue': issue.name,
-                'comments_count': comments.count(),
-                'comments': serializer.data
-            })
-        except Project.DoesNotExist:
-            return Response(
-                {"error": "Projet non trouvé"},
-                status=status.HTTP_404_NOT_FOUND
-            )
-        except Issue.DoesNotExist:
-            return Response(
-                {"error": "Issue non trouvée"},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            self.get_issue()
+            return super().list(request, *args, **kwargs)
         except PermissionError as e:
             return Response(
                 {"error": str(e)},
                 status=status.HTTP_403_FORBIDDEN
             )
 
-    @swagger_auto_schema(
-        operation_summary="Créer un commentaire",
-        operation_description="Ajoute un commentaire à une issue (contributeurs uniquement)",
-        request_body=CommentCreateSerializer,
-        responses={
-            201: CommentSerializer,
-            400: "Description requise",
-            403: "Accès refusé (non-contributeur)"
-        },
-        tags=['Comments']
-    )
+    @comment_create_docs
     def create(self, request, *args, **kwargs):
-        """
-        Créer un nouveau commentaire
-        Route : POST /api/projects/{project_id}/issues/{issue_id}/comments/
-        """
         try:
-            self.get_issue()
-            serializer = self.get_serializer(data=request.data)
+            issue = self.get_issue()
+            serializer = CommentCreateSerializer(data=request.data)
 
             if serializer.is_valid():
-                comment = serializer.save()
-                # Retourner le commentaire créé avec le serializer complet
+                comment = serializer.save(issue=issue, author=request.user)
                 return Response(
                     CommentSerializer(comment).data,
                     status=status.HTTP_201_CREATED
                 )
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        except Project.DoesNotExist:
-            return Response(
-                {"error": "Projet non trouvé"},
-                status=status.HTTP_404_NOT_FOUND
-            )
-        except Issue.DoesNotExist:
-            return Response(
-                {"error": "Issue non trouvée"},
-                status=status.HTTP_404_NOT_FOUND
-            )
         except PermissionError as e:
             return Response(
                 {"error": str(e)},
                 status=status.HTTP_403_FORBIDDEN
             )
 
-    @swagger_auto_schema(
-        operation_summary="Détail d'un commentaire",
-        operation_description="Affiche les détails d'un commentaire spécifique",
-        responses={
-            200: CommentSerializer,
-            403: "Accès refusé (non-contributeur)",
-            404: "Commentaire non trouvé"
-        },
-        tags=['Comments']
-    )
+    @comment_retrieve_docs
     def retrieve(self, request, *args, **kwargs):
-        """
-        Détail d'un commentaire spécifique
-        Route : GET /api/projects/{project_id}/issues/{issue_id}/comments/{comment_id}/
-        """
         try:
             self.get_issue()
-            comment = self.get_object()
-            serializer = self.get_serializer(comment)
-            return Response(serializer.data)
-        except Project.DoesNotExist:
-            return Response(
-                {"error": "Projet non trouvé"},
-                status=status.HTTP_404_NOT_FOUND
-            )
-        except Issue.DoesNotExist:
-            return Response(
-                {"error": "Issue non trouvée"},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            return super().retrieve(request, *args, **kwargs)
         except PermissionError as e:
             return Response(
                 {"error": str(e)},
                 status=status.HTTP_403_FORBIDDEN
             )
 
-    @swagger_auto_schema(
-        operation_summary="Modifier un commentaire",
-        operation_description="Modifie un commentaire (auteur uniquement)",
-        request_body=CommentUpdateSerializer,
-        responses={
-            200: CommentSerializer,
-            403: "Accès refusé (non-auteur)",
-            404: "Commentaire non trouvé"
-        },
-        tags=['Comments']
-    )
+    @comment_update_docs
     def update(self, request, *args, **kwargs):
-        """
-        Modifier un commentaire (PUT/PATCH)
-        Route : PUT/PATCH /api/projects/{project_id}/issues/{issue_id}/comments/{comment_id}/
-        """
         try:
             self.get_issue()
             comment = self.get_object()
 
-            # Seul l'auteur du commentaire peut le modifier
+            # SECURITY: Seul l'auteur du commentaire peut le modifier
             if comment.author != request.user:
                 return Response(
                     {"error": "Seul l'auteur du commentaire peut le modifier"},
                     status=status.HTTP_403_FORBIDDEN
                 )
 
-            partial = kwargs.pop('partial', False)
-            serializer = self.get_serializer(comment, data=request.data, partial=partial)
-
+            serializer = CommentUpdateSerializer(comment, data=request.data)
             if serializer.is_valid():
                 serializer.save()
                 return Response(CommentSerializer(comment).data)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        except Project.DoesNotExist:
-            return Response(
-                {"error": "Projet non trouvé"},
-                status=status.HTTP_404_NOT_FOUND
-            )
-        except Issue.DoesNotExist:
-            return Response(
-                {"error": "Issue non trouvée"},
-                status=status.HTTP_404_NOT_FOUND
-            )
         except PermissionError as e:
             return Response(
                 {"error": str(e)},
                 status=status.HTTP_403_FORBIDDEN
             )
 
-    @swagger_auto_schema(
-        operation_summary="Supprimer un commentaire",
-        operation_description="Supprime définitivement un commentaire (auteur uniquement)",
-        responses={
-            204: "Commentaire supprimé",
-            403: "Accès refusé (non-auteur)",
-            404: "Commentaire non trouvé"
-        },
-        tags=['Comments']
-    )
-    def destroy(self, request, *args, **kwargs):
-        """
-        Supprimer un commentaire
-        Route : DELETE /api/projects/{project_id}/issues/{issue_id}/comments/{comment_id}/
-        """
+    @comment_partial_update_docs
+    def partial_update(self, request, *args, **kwargs):
         try:
             self.get_issue()
             comment = self.get_object()
 
-            # Seul l'auteur du commentaire peut le supprimer
+            # SECURITY: Seul l'auteur du commentaire peut le modifier
+            if comment.author != request.user:
+                return Response(
+                    {"error": "Seul l'auteur du commentaire peut le modifier"},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+            serializer = CommentUpdateSerializer(comment, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(CommentSerializer(comment).data)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        except PermissionError as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+    @comment_destroy_docs
+    def destroy(self, request, *args, **kwargs):
+        try:
+            self.get_issue()
+            comment = self.get_object()
+
+            # SECURITY: Seul l'auteur du commentaire peut le supprimer
             if comment.author != request.user:
                 return Response(
                     {"error": "Seul l'auteur du commentaire peut le supprimer"},
@@ -873,18 +541,93 @@ class CommentViewSet(viewsets.ModelViewSet):
             comment.delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
 
-        except Project.DoesNotExist:
-            return Response(
-                {"error": "Projet non trouvé"},
-                status=status.HTTP_404_NOT_FOUND
-            )
-        except Issue.DoesNotExist:
-            return Response(
-                {"error": "Issue non trouvée"},
-                status=status.HTTP_404_NOT_FOUND
-            )
         except PermissionError as e:
             return Response(
                 {"error": str(e)},
                 status=status.HTTP_403_FORBIDDEN
+            )
+
+
+# ================================
+# RGPD - CONFORMITÉ
+# ================================
+
+class GDPRViewSet(viewsets.ViewSet):
+    """RGPD: Endpoints pour la conformité RGPD"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    @rgpd_export_docs
+    @action(detail=False, methods=['get'])
+    def export_my_data(self, request):
+        """RGPD: Droit d'accès - Article 15"""
+        user = request.user
+
+        # Collecter toutes les données utilisateur
+        data = {
+            'user_info': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'date_of_birth': user.date_of_birth.isoformat() if user.date_of_birth else None,
+                'can_be_contacted': user.can_be_contacted,
+                'can_data_be_shared': user.can_data_be_shared,
+                'created_time': user.created_time.isoformat(),
+            },
+            'projects_authored': list(user.authored_projects.values('id', 'name', 'created_time')),
+            'contributions': list(user.contributions.values('project__name', 'created_time')),
+            'issues_authored': list(user.authored_issues.values('title', 'created_time', 'project__name')),
+            'issues_assigned': list(user.assigned_issues.values('title', 'created_time', 'project__name')),
+            'comments_authored': list(user.authored_comments.values('description', 'created_time', 'issue__title')),
+            'export_date': timezone.now().isoformat(),
+            'rgpd_notice': 'Données exportées conformément à l\'Article 15 du RGPD'
+        }
+
+        response = Response(data)
+        response['Content-Disposition'] = (
+            f'attachment; filename="donnees_personnelles_{user.username}_'
+            f'{timezone.now().strftime("%Y%m%d")}.json"'
+        )
+        return response
+
+    @rgpd_delete_docs
+    @action(detail=False, methods=['delete'])
+    def delete_my_account(self, request):
+        """RGPD: Droit à l'oubli - Article 17"""
+        user = request.user
+
+        # RGPD: Anonymisation plutôt que suppression pour préserver l'intégrité des données
+        try:
+            # Anonymiser les commentaires (garder le contenu mais supprimer l'attribution)
+            user.authored_comments.update(author=None)
+
+            # Anonymiser les issues (garder le contenu mais supprimer l'attribution)
+            user.authored_issues.update(author=None, assignee=None)
+
+            # Gérer les projets créés par l'utilisateur
+            for project in user.authored_projects.all():
+                if project.contributors.count() == 1:
+                    # Si l'utilisateur est le seul contributeur, supprimer le projet
+                    project.delete()
+                else:
+                    # Sinon, anonymiser l'auteur
+                    project.author = None
+                    project.save()
+
+            # Supprimer les contributions
+            user.contributions.all().delete()
+
+            # Supprimer définitivement l'utilisateur
+            user.delete()
+
+            return Response(
+                {"message": "Compte supprimé conformément au RGPD Article 17"},
+                status=status.HTTP_204_NO_CONTENT
+            )
+
+        except Exception as e:
+            return Response(
+                {"error": f"Erreur lors de la suppression: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )

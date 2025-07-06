@@ -1,119 +1,108 @@
 """
-Configuration des URLs pour l'API SoftDesk
-Définit toutes les routes de l'API REST pour la gestion des projets et l'authentification JWT
-Routes définies manuellement pour un contrôle total et une clarté maximale
+URLs de l'API SoftDesk - Routes manuelles sans router
+Organisation claire des endpoints avec gestion explicite des méthodes HTTP
 """
 
 from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
 from . import views
 
-# Configuration des URLs de l'application
 urlpatterns = [
-    # === ROUTES D'AUTHENTIFICATION JWT ===
-    # Ces routes ne nécessitent pas d'authentification (AllowAny)
 
-    # Inscription d'un nouvel utilisateur
-    # POST /api/auth/register/ → Création compte + génération JWT tokens
-    path('auth/register/', views.RegisterView.as_view(), name='register'),
+    # ================================
+    # AUTHENTIFICATION
+    # ================================
 
-    # Connexion utilisateur
-    # POST /api/auth/login/ → Authentification + génération JWT tokens
-    path('auth/login/', views.login_view, name='login'),
+    path('auth/register/', views.RegisterView.as_view(), name='auth-register'),
+    path('auth/login/', views.login_view, name='auth-login'),
+    path('auth/profile/', views.user_profile, name='auth-profile'),
+    path('auth/refresh/', TokenRefreshView.as_view(), name='auth-refresh'),
 
-    # Renouvellement du token d'accès
-    # POST /api/auth/refresh/ → Nouveau access token avec refresh token
-    path('auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 
-    # Profil de l'utilisateur connecté
-    # GET /api/auth/profile/ → Informations utilisateur (nécessite JWT)
-    path('auth/profile/', views.user_profile, name='user_profile'),
-
-    # === ROUTES PROJETS (CRUD) ===
-    # Toutes ces routes nécessitent une authentification JWT (IsAuthenticated)
+    # ================================
+    # PROJETS
+    # ================================
 
     # Liste et création des projets
-    # GET /api/projects/ → Liste des projets (seuls ceux où l'utilisateur est contributeur)
-    # POST /api/projects/ → Créer un nouveau projet (l'auteur devient contributeur automatiquement)
     path('projects/', views.ProjectViewSet.as_view({
-        'get': 'list',
-        'post': 'create'
-    }), name='project_list'),
+        'get': 'list',           # GET /projects/ - Liste des projets
+        'post': 'create'         # POST /projects/ - Créer un projet
+    }), name='projects-list'),
 
-    # Détail, modification et suppression d'un projet spécifique
-    # GET /api/projects/{id}/ → Détail d'un projet
-    # PUT /api/projects/{id}/ → Modifier complètement un projet (auteur seulement)
-    # PATCH /api/projects/{id}/ → Modifier partiellement un projet (auteur seulement)
-    # DELETE /api/projects/{id}/ → Supprimer un projet (auteur seulement)
+    # Détail, modification et suppression d'un projet
     path('projects/<int:pk>/', views.ProjectViewSet.as_view({
-        'get': 'retrieve',
-        'put': 'update',
-        'patch': 'partial_update',
-        'delete': 'destroy'
-    }), name='project_detail'),
+        'get': 'retrieve',       # GET /projects/{id}/ - Détail du projet
+        'put': 'update',         # PUT /projects/{id}/ - Modifier complètement
+        'patch': 'partial_update',  # PATCH /projects/{id}/ - Modifier partiellement
+        'delete': 'destroy'      # DELETE /projects/{id}/ - Supprimer
+    }), name='projects-detail'),
 
-    # === ROUTES CONTRIBUTEURS ===
-    # Gestion des contributeurs d'un projet (auteur seulement peut modifier)
 
-    # Liste et ajout des contributeurs
-    # GET /api/projects/{id}/contributors/ → Liste des contributeurs
-    # POST /api/projects/{id}/contributors/ → Ajouter un contributeur (auteur uniquement)
-    path('projects/<int:pk>/contributors/', views.ProjectViewSet.as_view({
-        'get': 'contributors',
-        'post': 'add_contributor'
-    }), name='project_contributors'),
+    # ================================
+    # CONTRIBUTEURS
+    # ================================
 
-    # Retirer un contributeur d'un projet
-    # DELETE /api/projects/{id}/contributors/{user_id}/ → Retirer un contributeur (auteur seulement)
-    path('projects/<int:pk>/contributors/<int:user_id>/', views.ProjectViewSet.as_view({
-        'delete': 'remove_contributor'
-    }), name='project_remove_contributor'),
+    # Liste et ajout des contributeurs d'un projet
+    path('projects/<int:project_pk>/contributors/', views.ContributorViewSet.as_view({
+        'get': 'list',           # GET /projects/{project_id}/contributors/
+        'post': 'create'         # POST /projects/{project_id}/contributors/
+    }), name='contributors-list'),
 
-    # === ROUTES DES ISSUES (JWT requis) ===
-    # Gestion des issues/tâches d'un projet
-    # Seuls les contributeurs du projet peuvent accéder aux issues
+    # Suppression d'un contributeur
+    path('projects/<int:project_pk>/contributors/<int:pk>/', views.ContributorViewSet.as_view({
+        'delete': 'destroy'      # DELETE /projects/{project_id}/contributors/{contributor_id}/
+    }), name='contributors-detail'),
+
+
+    # ================================
+    # ISSUES
+    # ================================
 
     # Liste et création des issues d'un projet
-    # GET /api/projects/{project_id}/issues/ → Liste des issues
-    # POST /api/projects/{project_id}/issues/ → Créer une nouvelle issue
     path('projects/<int:project_pk>/issues/', views.IssueViewSet.as_view({
-        'get': 'list',
-        'post': 'create'
-    }), name='project_issues'),
+        'get': 'list',           # GET /projects/{project_id}/issues/
+        'post': 'create'         # POST /projects/{project_id}/issues/
+    }), name='issues-list'),
 
-    # Gestion d'une issue spécifique
-    # GET /api/projects/{project_id}/issues/{issue_id}/ → Détail de l'issue
-    # PUT /api/projects/{project_id}/issues/{issue_id}/ → Modifier complètement (auteur issue/projet)
-    # PATCH /api/projects/{project_id}/issues/{issue_id}/ → Modifier partiellement (auteur issue/projet)
-    # DELETE /api/projects/{project_id}/issues/{issue_id}/ → Supprimer l'issue (auteur issue/projet)
+    # Détail, modification et suppression d'une issue
     path('projects/<int:project_pk>/issues/<int:pk>/', views.IssueViewSet.as_view({
-        'get': 'retrieve',
-        'put': 'update',
-        'patch': 'partial_update',
-        'delete': 'destroy'
-    }), name='issue_detail'),
+        'get': 'retrieve',       # GET /projects/{project_id}/issues/{issue_id}/
+        'put': 'update',         # PUT /projects/{project_id}/issues/{issue_id}/
+        'patch': 'partial_update',  # PATCH /projects/{project_id}/issues/{issue_id}/
+        'delete': 'destroy'      # DELETE /projects/{project_id}/issues/{issue_id}/
+    }), name='issues-detail'),
 
-    # === ROUTES DES COMMENTAIRES (JWT requis) ===
-    # Gestion des commentaires d'une issue
-    # Seuls les contributeurs du projet peuvent accéder aux commentaires
+
+    # ================================
+    # COMMENTAIRES
+    # ================================
 
     # Liste et création des commentaires d'une issue
-    # GET /api/projects/{project_id}/issues/{issue_id}/comments/ → Liste des commentaires
-    # POST /api/projects/{project_id}/issues/{issue_id}/comments/ → Créer un nouveau commentaire
     path('projects/<int:project_pk>/issues/<int:issue_pk>/comments/', views.CommentViewSet.as_view({
-        'get': 'list',
-        'post': 'create'
-    }), name='issue_comments'),
+        'get': 'list',           # GET /projects/{project_id}/issues/{issue_id}/comments/
+        'post': 'create'         # POST /projects/{project_id}/issues/{issue_id}/comments/
+    }), name='comments-list'),
 
-    # Gestion d'un commentaire spécifique
-    # GET /api/projects/{project_id}/issues/{issue_id}/comments/{comment_id}/ → Détail du commentaire
-    # PUT /api/projects/{project_id}/issues/{issue_id}/comments/{comment_id}/ → Modifier (auteur uniquement)
-    # PATCH /api/projects/{project_id}/issues/{issue_id}/comments/{comment_id}/ → Modifier (auteur uniquement)
-    # DELETE /api/projects/{project_id}/issues/{issue_id}/comments/{comment_id}/ → Supprimer (auteur uniquement)
-    path('projects/<int:project_pk>/issues/<int:issue_pk>/comments/<uuid:pk>/', views.CommentViewSet.as_view({
-        'get': 'retrieve',
-        'put': 'update',
-        'patch': 'partial_update',
-        'delete': 'destroy'
-    }), name='comment_detail'),
+    # Détail, modification et suppression d'un commentaire
+    path('projects/<int:project_pk>/issues/<int:issue_pk>/comments/<int:pk>/', views.CommentViewSet.as_view({
+        'get': 'retrieve',       # GET /projects/{project_id}/issues/{issue_id}/comments/{comment_id}/
+        'put': 'update',         # PUT /projects/{project_id}/issues/{issue_id}/comments/{comment_id}/
+        'patch': 'partial_update',  # PATCH /projects/{project_id}/issues/{issue_id}/comments/{comment_id}/
+        'delete': 'destroy'      # DELETE /projects/{project_id}/issues/{issue_id}/comments/{comment_id}/
+    }), name='comments-detail'),
+
+
+    # ================================
+    # RGPD - CONFORMITÉ
+    # ================================
+
+    # Export des données personnelles (RGPD Article 15)
+    path('gdpr/export-my-data/', views.GDPRViewSet.as_view({
+        'get': 'export_my_data'  # GET /gdpr/export-my-data/
+    }), name='gdpr-export'),
+
+    # Suppression du compte (RGPD Article 17)
+    path('gdpr/delete-my-account/', views.GDPRViewSet.as_view({
+        'delete': 'delete_my_account'  # DELETE /gdpr/delete-my-account/
+    }), name='gdpr-delete'),
 ]
