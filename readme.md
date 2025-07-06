@@ -1,6 +1,50 @@
 # API SoftDesk - Documentation des Routes
 
-## 📚 Documentation Interactive
+## � Installation et Démarrage
+
+### Option 1 : Installation locale avec Pipenv
+
+```bash
+# Cloner le projet
+git clone <votre-repo>
+cd OC_projet10
+
+# Installer les dépendances
+pipenv install
+
+# Activer l'environnement virtuel
+pipenv shell
+
+# Appliquer les migrations
+cd softdesk
+python manage.py migrate
+
+# Créer un superutilisateur (optionnel)
+python manage.py createsuperuser
+
+# Lancer le serveur
+python manage.py runserver
+```
+
+### Option 2 : Installation avec Docker 🐳
+
+```bash
+# Construire l'image Docker
+docker build -t softdesk-api .
+
+# Lancer le conteneur
+docker run -d --name softdesk -p 8000:8000 softdesk-api
+
+# Voir les logs (optionnel)
+docker logs -f softdesk
+
+# Arrêter le conteneur
+docker stop softdesk
+```
+
+**Dockerfile inclus** : Le projet contient un Dockerfile prêt à l'emploi pour une containerisation simple et efficace.
+
+## �📚 Documentation Interactive
 
 **Interface Swagger disponible sur :** http://localhost:8000/doc/
 
@@ -247,13 +291,13 @@ Authorization: Bearer YOUR_ACCESS_TOKEN
 
 L'API SoftDesk dispose d'une documentation interactive complète accessible via Swagger UI :
 
-### URLs de documentation disponibles :
+### 🌐 URLs de documentation disponibles :
 - **📖 Documentation interactive (Swagger UI)** : http://localhost:8000/doc/
 - **📄 Documentation lisible (ReDoc)** : http://localhost:8000/redoc/
 - **🔧 Schéma JSON** : http://localhost:8000/swagger.json
 - **📋 Schéma YAML** : http://localhost:8000/swagger.yaml
 
-### Fonctionnalités Swagger :
+### ✨ Fonctionnalités Swagger :
 - ✅ **Interface interactive** avec formulaires de test
 - ✅ **Authentification JWT intégrée** (bouton "Authorize")
 - ✅ **Exemples de requêtes et réponses** complets
@@ -261,12 +305,78 @@ L'API SoftDesk dispose d'une documentation interactive complète accessible via 
 - ✅ **Test direct des routes** depuis l'interface
 - ✅ **Documentation des paramètres** et codes de statut
 
-### Comment utiliser Swagger :
+### 🔧 Comment utiliser Swagger :
 1. **Accédez à** : http://localhost:8000/doc/
 2. **Authentifiez-vous** : Cliquez sur "Authorize" et saisissez votre token JWT
 3. **Testez les routes** : Cliquez sur une route → "Try it out" → Saisissez les paramètres → "Execute"
 
-### Authentification dans Swagger :
+### 🔑 Authentification dans Swagger :
 ```
 Valeur à saisir dans "Authorize" : Bearer YOUR_ACCESS_TOKEN
 ```
+
+## 🐳 Déploiement Docker
+
+### Dockerfile inclus
+
+Le projet inclut un `Dockerfile` optimisé pour un déploiement simple :
+
+```dockerfile
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Installer les dépendances
+COPY Pipfile Pipfile.lock ./
+RUN pip install pipenv && pipenv install --system --deploy
+
+# Copier le code source
+COPY . .
+WORKDIR /app/softdesk
+
+# Exposer le port et lancer le serveur
+EXPOSE 8000
+CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+```
+
+### Commandes Docker
+
+```bash
+# Construction de l'image
+docker build -t softdesk-api .
+
+# Lancement du conteneur
+docker run -d \
+  --name softdesk \
+  -p 8000:8000 \
+  softdesk-api
+
+# Gestion du conteneur
+docker logs -f softdesk     # Voir les logs
+docker stop softdesk        # Arrêter
+docker start softdesk       # Redémarrer
+docker rm softdesk          # Supprimer
+```
+
+### Accès aux services (Docker)
+
+Une fois le conteneur lancé :
+- **API principale** : http://localhost:8000/api/
+- **Documentation Swagger** : http://localhost:8000/doc/
+- **Interface Admin** : http://localhost:8000/admin/
+- **Documentation ReDoc** : http://localhost:8000/redoc/
+
+## 🛠️ Caractéristiques techniques
+
+### Stack technologique :
+- **Backend** : Django 5.2.3 + Django REST Framework
+- **Authentification** : JWT (djangorestframework-simplejwt)
+- **Documentation** : Swagger/OpenAPI (drf-yasg)
+- **Base de données** : SQLite (développement)
+- **Containerisation** : Docker
+
+### Architecture :
+- **API RESTful** avec routes hiérarchiques
+- **Permissions granulaires** par rôle (Auteur/Contributeur)
+- **Gestion d'UUID** pour les commentaires
+- **Validation RGPD** et contrôle d'âge intégré
