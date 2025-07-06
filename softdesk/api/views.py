@@ -1,5 +1,5 @@
 from rest_framework import status, generics, viewsets, permissions
-from rest_framework.decorators import api_view, permission_classes, action
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -104,17 +104,16 @@ class ProjectViewSet(viewsets.ModelViewSet):
         # Un utilisateur ne voit que les projets où il est contributeur
         return Project.objects.filter(contributors__user=self.request.user).distinct()
 
-    @action(detail=True, methods=['get'])
     def contributors(self, request, pk=None):
         """
         Liste des contributeurs d'un projet
+        Route : GET /api/projects/{pk}/contributors/
         """
         project = self.get_object()
         contributors = project.contributors.all()
         serializer = ContributorSerializer(contributors, many=True)
         return Response(serializer.data)
 
-    @action(detail=True, methods=['post'])
     def add_contributor(self, request, pk=None):
         """
         Ajouter un contributeur à un projet (seul l'auteur peut le faire)
@@ -143,10 +142,10 @@ class ProjectViewSet(viewsets.ModelViewSet):
             )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    @action(detail=True, methods=['delete'], url_path='remove_contributor/(?P<user_id>[^/.]+)')
     def remove_contributor(self, request, pk=None, user_id=None):
         """
         Retirer un contributeur d'un projet (seul l'auteur peut le faire)
+        Utilise user_id depuis l'URL : /api/projects/{pk}/contributors/{user_id}/
         """
         project = self.get_object()
 
