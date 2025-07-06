@@ -55,17 +55,13 @@ urlpatterns = [
     # === ROUTES CONTRIBUTEURS ===
     # Gestion des contributeurs d'un projet (auteur seulement peut modifier)
 
-    # Liste des contributeurs d'un projet
-    # GET /api/projects/{id}/contributors/ → Liste de tous les contributeurs du projet
+    # Liste et ajout des contributeurs
+    # GET /api/projects/{id}/contributors/ → Liste des contributeurs
+    # POST /api/projects/{id}/contributors/ → Ajouter un contributeur (auteur uniquement)
     path('projects/<int:pk>/contributors/', views.ProjectViewSet.as_view({
-        'get': 'contributors'
-    }), name='project_contributors'),
-
-    # Ajouter un contributeur à un projet
-    # POST /api/projects/{id}/contributors/ → Ajouter un contributeur (auteur seulement)
-    path('projects/<int:pk>/contributors/', views.ProjectViewSet.as_view({
+        'get': 'contributors',
         'post': 'add_contributor'
-    }), name='project_add_contributor'),
+    }), name='project_contributors'),
 
     # Retirer un contributeur d'un projet
     # DELETE /api/projects/{id}/contributors/{user_id}/ → Retirer un contributeur (auteur seulement)
