@@ -5,7 +5,7 @@ Définit l'affichage et la gestion des modèles dans l'admin Django
 
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import User, Project, Contributor
+from .models import User, Project, Contributor, Issue
 
 
 @admin.register(User)
@@ -125,3 +125,82 @@ class ContributorAdmin(admin.ModelAdmin):
         if obj:  # Si on modifie un contributeur existant
             return self.readonly_fields + ('user', 'project')
         return self.readonly_fields
+
+
+@admin.register(Issue)
+class IssueAdmin(admin.ModelAdmin):
+    """
+    Configuration de l'admin pour le modèle Issue
+    Interface complète pour gérer les issues/tâches des projets
+    """
+    # Colonnes affichées dans la liste
+    list_display = (
+        'name', 'project', 'author', 'assignee',
+        'priority', 'tag', 'status', 'created_time'
+    )
+
+    # Filtres disponibles dans la sidebar
+    list_filter = (
+        'priority', 'tag', 'status', 'project__type',
+        'created_time', 'updated_time'
+    )
+
+    # Champs de recherche
+    search_fields = (
+        'name', 'description', 'project__name',
+        'author__username', 'assignee__username'
+    )
+
+    # Organisation des champs en sections
+    fieldsets = (
+        ('Informations de l\'issue', {
+            'fields': ('name', 'description')
+        }),
+        ('Assignation', {
+            'fields': ('project', 'author', 'assignee')
+        }),
+        ('Classification', {
+            'fields': ('priority', 'tag', 'status'),
+            'classes': ('wide',)
+        }),
+        ('Métadonnées', {
+            'fields': ('created_time', 'updated_time'),
+            'classes': ('collapse',)
+        }),
+    )
+
+    # Champs en lecture seule
+    readonly_fields = ('created_time', 'updated_time')
+
+    # Filtres par date
+    date_hierarchy = 'created_time'
+
+    # Tri par défaut
+    ordering = ('-created_time',)
+
+    # Pagination
+    list_per_page = 25
+
+    # Autocomplete pour les relations (améliore les performances)
+    autocomplete_fields = ('project', 'author', 'assignee')
+
+    # Actions personnalisées
+    actions = ['mark_as_to_do', 'mark_as_in_progress', 'mark_as_finished']
+
+    def mark_as_to_do(self, request, queryset):
+        """Action pour marquer les issues comme 'À faire'"""
+        updated = queryset.update(status='TO_DO')
+        self.message_user(request, f'{updated} issue(s) marquée(s) comme "À faire".')
+    mark_as_to_do.short_description = "Marquer comme 'À faire'"
+
+    def mark_as_in_progress(self, request, queryset):
+        """Action pour marquer les issues comme 'En cours'"""
+        updated = queryset.update(status='IN_PROGRESS')
+        self.message_user(request, f'{updated} issue(s) marquée(s) comme "En cours".')
+    mark_as_in_progress.short_description = "Marquer comme 'En cours'"
+
+    def mark_as_finished(self, request, queryset):
+        """Action pour marquer les issues comme 'Terminé'"""
+        updated = queryset.update(status='FINISHED')
+        self.message_user(request, f'{updated} issue(s) marquée(s) comme "Terminé".')
+    mark_as_finished.short_description = "Marquer comme 'Terminé'"

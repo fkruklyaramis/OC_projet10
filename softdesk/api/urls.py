@@ -68,4 +68,28 @@ urlpatterns = [
     path('projects/<int:pk>/contributors/<int:user_id>/', views.ProjectViewSet.as_view({
         'delete': 'remove_contributor'
     }), name='project_remove_contributor'),
+
+    # === ROUTES DES ISSUES (JWT requis) ===
+    # Gestion des issues/tâches d'un projet
+    # Seuls les contributeurs du projet peuvent accéder aux issues
+
+    # Liste et création des issues d'un projet
+    # GET /api/projects/{project_id}/issues/ → Liste des issues
+    # POST /api/projects/{project_id}/issues/ → Créer une nouvelle issue
+    path('projects/<int:project_pk>/issues/', views.IssueViewSet.as_view({
+        'get': 'list',
+        'post': 'create'
+    }), name='project_issues'),
+
+    # Gestion d'une issue spécifique
+    # GET /api/projects/{project_id}/issues/{issue_id}/ → Détail de l'issue
+    # PUT /api/projects/{project_id}/issues/{issue_id}/ → Modifier complètement (auteur issue/projet)
+    # PATCH /api/projects/{project_id}/issues/{issue_id}/ → Modifier partiellement (auteur issue/projet)
+    # DELETE /api/projects/{project_id}/issues/{issue_id}/ → Supprimer l'issue (auteur issue/projet)
+    path('projects/<int:project_pk>/issues/<int:pk>/', views.IssueViewSet.as_view({
+        'get': 'retrieve',
+        'put': 'update',
+        'patch': 'partial_update',
+        'delete': 'destroy'
+    }), name='issue_detail'),
 ]

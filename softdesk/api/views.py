@@ -3,10 +3,11 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
-from .models import User, Project, Contributor
+from .models import User, Project, Contributor, Issue
 from .serializers import (
     UserSerializer, LoginSerializer, ProjectSerializer,
-    ContributorSerializer, ContributorCreateSerializer
+    ContributorSerializer, ContributorCreateSerializer,
+    IssueSerializer, IssueCreateSerializer, IssueUpdateSerializer
 )
 
 
@@ -170,4 +171,202 @@ class ProjectViewSet(viewsets.ModelViewSet):
             return Response(
                 {"error": "Contributeur non trouvé"},
                 status=status.HTTP_404_NOT_FOUND
+            )
+
+
+class IssueViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet pour la gestion des Issues d'un projet
+    - Seuls les contributeurs du projet peuvent accéder aux issues
+    - L'auteur et les contributeurs peuvent modifier les issues
+    """
+    permission_classes = [permissions.IsAuthenticated, IsContributor]
+
+    def get_serializer_class(self):
+        """
+        Retourne le bon serializer selon l'action
+        """
+        if self.action == 'create':
+            return IssueCreateSerializer
+        elif self.action in ['update', 'partial_update']:
+            return IssueUpdateSerializer
+        return IssueSerializer
+
+    def get_queryset(self):
+        """
+        Filtrer les issues par projet et s'assurer que l'utilisateur est contributeur
+        """
+        project_id = self.kwargs.get('project_pk')
+        try:
+            project = Project.objects.get(pk=project_id)
+            # Vérifier que l'utilisateur est contributeur
+            if not project.contributors.filter(user=self.request.user).exists():
+                return Issue.objects.none()
+            return project.issues.all()
+        except Project.DoesNotExist:
+            return Issue.objects.none()
+
+    def get_project(self):
+        """
+        Récupère le projet depuis l'URL et vérifie les permissions
+        """
+        project_id = self.kwargs.get('project_pk')
+        try:
+            project = Project.objects.get(pk=project_id)
+            # Vérifier que l'utilisateur est contributeur
+            if not project.contributors.filter(user=self.request.user).exists():
+                raise PermissionError("Vous n'êtes pas contributeur de ce projet.")
+            return project
+        except Project.DoesNotExist:
+            raise Project.DoesNotExist("Le projet n'existe pas.")
+
+    def get_serializer_context(self):
+        """
+        Ajoute le projet au contexte du serializer
+        """
+        context = super().get_serializer_context()
+        try:
+            context['project'] = self.get_project()
+        except (Project.DoesNotExist, PermissionError):
+            pass
+        return context
+
+    def list(self, request, *args, **kwargs):
+        """
+        Liste des issues d'un projet
+        Route : GET /api/projects/{project_id}/issues/
+        """
+        try:
+            project = self.get_project()
+            issues = self.get_queryset()
+            serializer = self.get_serializer(issues, many=True)
+            return Response({
+                'project': project.name,
+                'issues_count': issues.count(),
+                'issues': serializer.data
+            })
+        except Project.DoesNotExist:
+            return Response(
+                {"error": "Projet non trouvé"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except PermissionError as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+    def create(self, request, *args, **kwargs):
+        """
+        Créer une nouvelle issue
+        Route : POST /api/projects/{project_id}/issues/
+        """
+        try:
+            self.get_project()
+            serializer = self.get_serializer(data=request.data)
+
+            if serializer.is_valid():
+                issue = serializer.save()
+                # Retourner l'issue créée avec le serializer complet
+                return Response(
+                    IssueSerializer(issue).data,
+                    status=status.HTTP_201_CREATED
+                )
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        except Project.DoesNotExist:
+            return Response(
+                {"error": "Projet non trouvé"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except PermissionError as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+    def retrieve(self, request, *args, **kwargs):
+        """
+        Détail d'une issue spécifique
+        Route : GET /api/projects/{project_id}/issues/{issue_id}/
+        """
+        try:
+            self.get_project()
+            issue = self.get_object()
+            serializer = self.get_serializer(issue)
+            return Response(serializer.data)
+        except Project.DoesNotExist:
+            return Response(
+                {"error": "Projet non trouvé"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except PermissionError as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+    def update(self, request, *args, **kwargs):
+        """
+        Modifier une issue (PUT/PATCH)
+        Route : PUT/PATCH /api/projects/{project_id}/issues/{issue_id}/
+        """
+        try:
+            project = self.get_project()
+            issue = self.get_object()
+
+            # Seul l'auteur de l'issue peut la modifier (ou l'auteur du projet)
+            if issue.author != request.user and project.author != request.user:
+                return Response(
+                    {"error": "Seul l'auteur de l'issue ou du projet peut la modifier"},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+            partial = kwargs.pop('partial', False)
+            serializer = self.get_serializer(issue, data=request.data, partial=partial)
+
+            if serializer.is_valid():
+                serializer.save()
+                return Response(IssueSerializer(issue).data)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        except Project.DoesNotExist:
+            return Response(
+                {"error": "Projet non trouvé"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except PermissionError as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+    def destroy(self, request, *args, **kwargs):
+        """
+        Supprimer une issue
+        Route : DELETE /api/projects/{project_id}/issues/{issue_id}/
+        """
+        try:
+            project = self.get_project()
+            issue = self.get_object()
+
+            # Seul l'auteur de l'issue peut la supprimer (ou l'auteur du projet)
+            if issue.author != request.user and project.author != request.user:
+                return Response(
+                    {"error": "Seul l'auteur de l'issue ou du projet peut la supprimer"},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+            issue.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        except Project.DoesNotExist:
+            return Response(
+                {"error": "Projet non trouvé"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except PermissionError as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_403_FORBIDDEN
             )

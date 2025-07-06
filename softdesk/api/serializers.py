@@ -5,7 +5,7 @@ Gère la conversion entre les objets Python/Django et les formats JSON pour l'AP
 
 from rest_framework import serializers
 from django.contrib.auth import authenticate
-from .models import User, Project, Contributor
+from .models import User, Project, Contributor, Issue
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -188,3 +188,168 @@ class ContributorCreateSerializer(serializers.ModelSerializer):
             )
 
         return Contributor.objects.create(user=user, project=project)
+
+
+class IssueSerializer(serializers.ModelSerializer):
+    """
+    Serializer pour l'affichage et la gestion des Issues
+    - Affiche les informations lisibles (noms au lieu d'IDs)
+    - Gère les validations métier
+    """
+    author_username = serializers.CharField(source='author.username', read_only=True)
+    assignee_username = serializers.CharField(source='assignee.username', read_only=True)
+    project_name = serializers.CharField(source='project.name', read_only=True)
+
+    # Choix disponibles pour les champs à choix multiples
+    priority_display = serializers.CharField(source='get_priority_display', read_only=True)
+    tag_display = serializers.CharField(source='get_tag_display', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+
+    class Meta:
+        model = Issue
+        fields = [
+            'id', 'name', 'description', 'project', 'project_name',
+            'author', 'author_username', 'assignee', 'assignee_username',
+            'priority', 'priority_display', 'tag', 'tag_display',
+            'status', 'status_display', 'created_time', 'updated_time'
+        ]
+        read_only_fields = ['author', 'project', 'created_time', 'updated_time']
+
+    def __init__(self, *args, **kwargs):
+        """
+        Initialisation dynamique pour limiter les assignés aux contributeurs du projet
+        """
+        super().__init__(*args, **kwargs)
+
+        # Si on a un contexte avec le projet, limiter les assignés
+        if 'project' in self.context:
+            project = self.context['project']
+            # Limiter le queryset aux contributeurs du projet
+            self.fields['assignee'].queryset = User.objects.filter(
+                contributions__project=project
+            )
+
+    def validate_assignee(self, value):
+        """
+        Validation pour s'assurer que l'assigné est contributeur du projet
+        """
+        if value and 'project' in self.context:
+            project = self.context['project']
+            if not project.contributors.filter(user=value).exists():
+                raise serializers.ValidationError(
+                    "L'utilisateur assigné doit être contributeur du projet."
+                )
+        return value
+
+
+class IssueCreateSerializer(serializers.ModelSerializer):
+    """
+    Serializer simplifié pour la création d'Issues
+    - Interface utilisateur simplifiée
+    - Assigné par username (optionnel)
+    """
+    assignee_username = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        write_only=True,
+        help_text="Username du contributeur à assigner (optionnel)"
+    )
+
+    class Meta:
+        model = Issue
+        fields = [
+            'name', 'description', 'assignee_username',
+            'priority', 'tag', 'status'
+        ]
+
+    def validate_assignee_username(self, value):
+        """
+        Validation du username de l'assigné
+        """
+        if not value:  # Si vide, c'est OK
+            return None
+
+        try:
+            user = User.objects.get(username=value)
+            # Vérifier que l'utilisateur est contributeur du projet
+            project = self.context['project']
+            if not project.contributors.filter(user=user).exists():
+                raise serializers.ValidationError(
+                    f"L'utilisateur '{value}' n'est pas contributeur de ce projet."
+                )
+            return user
+        except User.DoesNotExist:
+            raise serializers.ValidationError(f"L'utilisateur '{value}' n'existe pas.")
+
+    def create(self, validated_data):
+        """
+        Création d'une Issue avec gestion de l'assigné
+        """
+        assignee = validated_data.pop('assignee_username', None)
+        project = self.context['project']
+        author = self.context['request'].user
+
+        issue = Issue.objects.create(
+            project=project,
+            author=author,
+            assignee=assignee,
+            **validated_data
+        )
+        return issue
+
+
+class IssueUpdateSerializer(serializers.ModelSerializer):
+    """
+    Serializer pour la mise à jour des Issues
+    - Permet de changer l'assigné par username
+    - Maintient les validations
+    """
+    assignee_username = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        write_only=True,
+        help_text="Username du contributeur à assigner (laisser vide pour désassigner)"
+    )
+
+    class Meta:
+        model = Issue
+        fields = [
+            'name', 'description', 'assignee_username',
+            'priority', 'tag', 'status'
+        ]
+
+    def validate_assignee_username(self, value):
+        """
+        Validation du username de l'assigné pour la mise à jour
+        """
+        if not value:  # Si vide, désassigner
+            return None
+
+        try:
+            user = User.objects.get(username=value)
+            # Vérifier que l'utilisateur est contributeur du projet
+            issue = self.instance
+            if not issue.project.contributors.filter(user=user).exists():
+                raise serializers.ValidationError(
+                    f"L'utilisateur '{value}' n'est pas contributeur de ce projet."
+                )
+            return user
+        except User.DoesNotExist:
+            raise serializers.ValidationError(f"L'utilisateur '{value}' n'existe pas.")
+
+    def update(self, instance, validated_data):
+        """
+        Mise à jour avec gestion de l'assigné
+        """
+        assignee = validated_data.pop('assignee_username', 'no_change')
+
+        # Mettre à jour l'assigné seulement si le champ est fourni
+        if assignee != 'no_change':
+            instance.assignee = assignee
+
+        # Mettre à jour les autres champs
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        instance.save()
+        return instance

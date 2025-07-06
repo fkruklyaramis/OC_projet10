@@ -136,3 +136,108 @@ class Contributor(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.project.name}"
+
+
+class Issue(models.Model):
+    """
+    Modèle Issue - Définit les problèmes/tâches d'un projet
+    Permet de planifier des fonctionnalités ou des bugs à régler
+    """
+
+    # Choix pour la priorité
+    PRIORITY_CHOICES = [
+        ('LOW', 'Faible'),
+        ('MEDIUM', 'Moyenne'),
+        ('HIGH', 'Élevée'),
+    ]
+
+    # Choix pour les balises/types
+    TAG_CHOICES = [
+        ('BUG', 'Bug'),
+        ('FEATURE', 'Fonctionnalité'),
+        ('TASK', 'Tâche'),
+    ]
+
+    # Choix pour le statut
+    STATUS_CHOICES = [
+        ('TO_DO', 'À faire'),
+        ('IN_PROGRESS', 'En cours'),
+        ('FINISHED', 'Terminé'),
+    ]
+
+    # Champs obligatoires
+    name = models.CharField(max_length=255, verbose_name="Nom de l'issue")
+    description = models.TextField(verbose_name="Description")
+
+    # Relation avec le projet
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.CASCADE,
+        related_name='issues',
+        verbose_name="Projet"
+    )
+
+    # Auteur de l'issue (contributeur qui l'a créée)
+    author = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='authored_issues',
+        verbose_name="Auteur"
+    )
+
+    # Assigné à (contributeur responsable de l'issue)
+    assignee = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='assigned_issues',
+        verbose_name="Assigné à"
+    )
+
+    # Priorité de l'issue
+    priority = models.CharField(
+        max_length=10,
+        choices=PRIORITY_CHOICES,
+        default='MEDIUM',
+        verbose_name="Priorité"
+    )
+
+    # Balise/Type de l'issue
+    tag = models.CharField(
+        max_length=10,
+        choices=TAG_CHOICES,
+        default='TASK',
+        verbose_name="Type"
+    )
+
+    # Statut de progression
+    status = models.CharField(
+        max_length=15,
+        choices=STATUS_CHOICES,
+        default='TO_DO',
+        verbose_name="Statut"
+    )
+
+    # Horodatage
+    created_time = models.DateTimeField(auto_now_add=True, verbose_name="Date de création")
+    updated_time = models.DateTimeField(auto_now=True, verbose_name="Dernière modification")
+
+    class Meta:
+        verbose_name = "Issue"
+        verbose_name_plural = "Issues"
+        ordering = ['-created_time']
+
+    def __str__(self):
+        return f"{self.name} - {self.project.name}"
+
+    def clean(self):
+        """
+        Validation personnalisée pour vérifier que l'assigné est contributeur du projet
+        """
+        super().clean()
+        if self.assignee and self.project:
+            if not self.project.contributors.filter(user=self.assignee).exists():
+                raise ValidationError(
+                    "L'utilisateur assigné doit être contributeur du projet."
+                )
