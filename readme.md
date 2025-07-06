@@ -1,5 +1,9 @@
 # API SoftDesk - Documentation des Routes
 
+## 📚 Documentation Interactive
+
+**Interface Swagger disponible sur :** http://localhost:8000/doc/
+
 ## Routes Authentication & Users
 | Méthode | URL | Description |
 |---------|-----|-------------|
@@ -238,3 +242,31 @@ Authorization: Bearer YOUR_ACCESS_TOKEN
 - Seul l'auteur d'un commentaire peut modifier/supprimer son commentaire
 - Les commentaires utilisent des UUID comme identifiants uniques
 - Les commentaires sont triés par date de création (plus récent en premier)
+
+## 📚 Documentation API Interactive (Swagger)
+
+L'API SoftDesk dispose d'une documentation interactive complète accessible via Swagger UI :
+
+### URLs de documentation disponibles :
+- **📖 Documentation interactive (Swagger UI)** : http://localhost:8000/doc/
+- **📄 Documentation lisible (ReDoc)** : http://localhost:8000/redoc/
+- **🔧 Schéma JSON** : http://localhost:8000/swagger.json
+- **📋 Schéma YAML** : http://localhost:8000/swagger.yaml
+
+### Fonctionnalités Swagger :
+- ✅ **Interface interactive** avec formulaires de test
+- ✅ **Authentification JWT intégrée** (bouton "Authorize")
+- ✅ **Exemples de requêtes et réponses** complets
+- ✅ **Organisation par catégories** (Authentication, Projects, Issues, Comments)
+- ✅ **Test direct des routes** depuis l'interface
+- ✅ **Documentation des paramètres** et codes de statut
+
+### Comment utiliser Swagger :
+1. **Accédez à** : http://localhost:8000/doc/
+2. **Authentifiez-vous** : Cliquez sur "Authorize" et saisissez votre token JWT
+3. **Testez les routes** : Cliquez sur une route → "Try it out" → Saisissez les paramètres → "Execute"
+
+### Authentification dans Swagger :
+```
+Valeur à saisir dans "Authorize" : Bearer YOUR_ACCESS_TOKEN
+```
