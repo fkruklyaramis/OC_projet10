@@ -3,11 +3,12 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
-from .models import User, Project, Contributor, Issue
+from .models import User, Project, Contributor, Issue, Comment
 from .serializers import (
     UserSerializer, LoginSerializer, ProjectSerializer,
     ContributorSerializer, ContributorCreateSerializer,
-    IssueSerializer, IssueCreateSerializer, IssueUpdateSerializer
+    IssueSerializer, IssueCreateSerializer, IssueUpdateSerializer,
+    CommentSerializer, CommentCreateSerializer, CommentUpdateSerializer
 )
 
 
@@ -363,6 +364,272 @@ class IssueViewSet(viewsets.ModelViewSet):
         except Project.DoesNotExist:
             return Response(
                 {"error": "Projet non trouvé"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except PermissionError as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+
+class CommentViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet pour la gestion des commentaires d'une issue
+    - Seuls les contributeurs du projet peuvent accéder aux commentaires
+    - Seul l'auteur du commentaire peut le modifier/supprimer
+    """
+    permission_classes = [permissions.IsAuthenticated, IsContributor]
+
+    def get_serializer_class(self):
+        """
+        Retourne le bon serializer selon l'action
+        """
+        if self.action == 'create':
+            return CommentCreateSerializer
+        elif self.action in ['update', 'partial_update']:
+            return CommentUpdateSerializer
+        return CommentSerializer
+
+    def get_object(self):
+        """
+        Récupère un commentaire spécifique par son UUID
+        en vérifiant qu'il appartient bien au projet et à l'issue spécifiés
+        """
+        project_id = self.kwargs.get('project_pk')
+        issue_id = self.kwargs.get('issue_pk')
+        comment_id = self.kwargs.get('pk')
+
+        try:
+            # Vérifier que le projet existe et que l'utilisateur est contributeur
+            project = Project.objects.get(pk=project_id)
+            if not project.contributors.filter(user=self.request.user).exists():
+                raise PermissionError("Vous n'êtes pas contributeur de ce projet.")
+
+            # Vérifier que l'issue existe dans ce projet
+            issue = Issue.objects.get(pk=issue_id, project=project)
+
+            # Récupérer le commentaire par UUID dans cette issue
+            comment = Comment.objects.get(pk=comment_id, issue=issue)
+
+            return comment
+
+        except Project.DoesNotExist:
+            raise Project.DoesNotExist("Le projet n'existe pas.")
+        except Issue.DoesNotExist:
+            raise Issue.DoesNotExist("L'issue n'existe pas.")
+        except Comment.DoesNotExist:
+            raise Comment.DoesNotExist("Le commentaire n'existe pas.")
+
+    def get_queryset(self):
+        """
+        Filtrer les commentaires par issue et s'assurer que l'utilisateur est contributeur
+        """
+        project_id = self.kwargs.get('project_pk')
+        issue_id = self.kwargs.get('issue_pk')
+
+        try:
+            project = Project.objects.get(pk=project_id)
+            issue = Issue.objects.get(pk=issue_id, project=project)
+
+            # Vérifier que l'utilisateur est contributeur
+            if not project.contributors.filter(user=self.request.user).exists():
+                return Comment.objects.none()
+
+            return issue.comments.all()
+        except (Project.DoesNotExist, Issue.DoesNotExist):
+            return Comment.objects.none()
+
+    def get_issue(self):
+        """
+        Récupère l'issue depuis l'URL et vérifie les permissions
+        """
+        project_id = self.kwargs.get('project_pk')
+        issue_id = self.kwargs.get('issue_pk')
+
+        try:
+            project = Project.objects.get(pk=project_id)
+            issue = Issue.objects.get(pk=issue_id, project=project)
+
+            # Vérifier que l'utilisateur est contributeur
+            if not project.contributors.filter(user=self.request.user).exists():
+                raise PermissionError("Vous n'êtes pas contributeur de ce projet.")
+
+            return issue
+        except Project.DoesNotExist:
+            raise Project.DoesNotExist("Le projet n'existe pas.")
+        except Issue.DoesNotExist:
+            raise Issue.DoesNotExist("L'issue n'existe pas.")
+
+    def get_serializer_context(self):
+        """
+        Ajoute l'issue au contexte du serializer
+        """
+        context = super().get_serializer_context()
+        try:
+            context['issue'] = self.get_issue()
+        except (Project.DoesNotExist, Issue.DoesNotExist, PermissionError):
+            pass
+        return context
+
+    def list(self, request, *args, **kwargs):
+        """
+        Liste des commentaires d'une issue
+        Route : GET /api/projects/{project_id}/issues/{issue_id}/comments/
+        """
+        try:
+            issue = self.get_issue()
+            comments = self.get_queryset()
+            serializer = self.get_serializer(comments, many=True)
+            return Response({
+                'project': issue.project.name,
+                'issue': issue.name,
+                'comments_count': comments.count(),
+                'comments': serializer.data
+            })
+        except Project.DoesNotExist:
+            return Response(
+                {"error": "Projet non trouvé"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Issue.DoesNotExist:
+            return Response(
+                {"error": "Issue non trouvée"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except PermissionError as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+    def create(self, request, *args, **kwargs):
+        """
+        Créer un nouveau commentaire
+        Route : POST /api/projects/{project_id}/issues/{issue_id}/comments/
+        """
+        try:
+            self.get_issue()
+            serializer = self.get_serializer(data=request.data)
+
+            if serializer.is_valid():
+                comment = serializer.save()
+                # Retourner le commentaire créé avec le serializer complet
+                return Response(
+                    CommentSerializer(comment).data,
+                    status=status.HTTP_201_CREATED
+                )
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        except Project.DoesNotExist:
+            return Response(
+                {"error": "Projet non trouvé"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Issue.DoesNotExist:
+            return Response(
+                {"error": "Issue non trouvée"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except PermissionError as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+    def retrieve(self, request, *args, **kwargs):
+        """
+        Détail d'un commentaire spécifique
+        Route : GET /api/projects/{project_id}/issues/{issue_id}/comments/{comment_id}/
+        """
+        try:
+            self.get_issue()
+            comment = self.get_object()
+            serializer = self.get_serializer(comment)
+            return Response(serializer.data)
+        except Project.DoesNotExist:
+            return Response(
+                {"error": "Projet non trouvé"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Issue.DoesNotExist:
+            return Response(
+                {"error": "Issue non trouvée"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except PermissionError as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+    def update(self, request, *args, **kwargs):
+        """
+        Modifier un commentaire (PUT/PATCH)
+        Route : PUT/PATCH /api/projects/{project_id}/issues/{issue_id}/comments/{comment_id}/
+        """
+        try:
+            self.get_issue()
+            comment = self.get_object()
+
+            # Seul l'auteur du commentaire peut le modifier
+            if comment.author != request.user:
+                return Response(
+                    {"error": "Seul l'auteur du commentaire peut le modifier"},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+            partial = kwargs.pop('partial', False)
+            serializer = self.get_serializer(comment, data=request.data, partial=partial)
+
+            if serializer.is_valid():
+                serializer.save()
+                return Response(CommentSerializer(comment).data)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        except Project.DoesNotExist:
+            return Response(
+                {"error": "Projet non trouvé"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Issue.DoesNotExist:
+            return Response(
+                {"error": "Issue non trouvée"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except PermissionError as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+    def destroy(self, request, *args, **kwargs):
+        """
+        Supprimer un commentaire
+        Route : DELETE /api/projects/{project_id}/issues/{issue_id}/comments/{comment_id}/
+        """
+        try:
+            self.get_issue()
+            comment = self.get_object()
+
+            # Seul l'auteur du commentaire peut le supprimer
+            if comment.author != request.user:
+                return Response(
+                    {"error": "Seul l'auteur du commentaire peut le supprimer"},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+            comment.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        except Project.DoesNotExist:
+            return Response(
+                {"error": "Projet non trouvé"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Issue.DoesNotExist:
+            return Response(
+                {"error": "Issue non trouvée"},
                 status=status.HTTP_404_NOT_FOUND
             )
         except PermissionError as e:

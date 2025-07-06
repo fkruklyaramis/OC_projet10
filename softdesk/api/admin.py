@@ -5,7 +5,7 @@ Définit l'affichage et la gestion des modèles dans l'admin Django
 
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import User, Project, Contributor, Issue
+from .models import User, Project, Contributor, Issue, Comment
 
 
 @admin.register(User)
@@ -204,3 +204,69 @@ class IssueAdmin(admin.ModelAdmin):
         updated = queryset.update(status='FINISHED')
         self.message_user(request, f'{updated} issue(s) marquée(s) comme "Terminé".')
     mark_as_finished.short_description = "Marquer comme 'Terminé'"
+
+
+@admin.register(Comment)
+class CommentAdmin(admin.ModelAdmin):
+    """
+    Configuration de l'admin pour le modèle Comment
+    Interface complète pour gérer les commentaires des issues
+    """
+    # Colonnes affichées dans la liste
+    list_display = (
+        'short_description', 'issue', 'author', 'created_time'
+    )
+
+    # Filtres disponibles dans la sidebar
+    list_filter = (
+        'issue__project', 'issue__tag', 'issue__status',
+        'created_time', 'author'
+    )
+
+    # Champs de recherche
+    search_fields = (
+        'description', 'issue__name', 'author__username',
+        'issue__project__name'
+    )
+
+    # Organisation des champs en sections
+    fieldsets = (
+        ('Contenu du commentaire', {
+            'fields': ('description',)
+        }),
+        ('Références', {
+            'fields': ('issue', 'author')
+        }),
+        ('Métadonnées', {
+            'fields': ('id', 'created_time'),
+            'classes': ('collapse',)
+        }),
+    )
+
+    # Champs en lecture seule
+    readonly_fields = ('id', 'created_time')
+
+    # Filtres par date
+    date_hierarchy = 'created_time'
+
+    # Tri par défaut
+    ordering = ('-created_time',)
+
+    # Pagination
+    list_per_page = 25
+
+    # Autocomplete pour les relations
+    autocomplete_fields = ('issue', 'author')
+
+    def short_description(self, obj):
+        """Affiche une version courte de la description"""
+        return obj.description[:50] + "..." if len(obj.description) > 50 else obj.description
+    short_description.short_description = "Description"
+
+    def get_readonly_fields(self, request, obj=None):
+        """
+        Rend l'issue et l'auteur en lecture seule lors de la modification
+        """
+        if obj:  # En modification
+            return self.readonly_fields + ('issue', 'author')
+        return self.readonly_fields

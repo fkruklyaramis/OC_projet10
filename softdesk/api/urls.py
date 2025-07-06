@@ -92,4 +92,28 @@ urlpatterns = [
         'patch': 'partial_update',
         'delete': 'destroy'
     }), name='issue_detail'),
+
+    # === ROUTES DES COMMENTAIRES (JWT requis) ===
+    # Gestion des commentaires d'une issue
+    # Seuls les contributeurs du projet peuvent accéder aux commentaires
+
+    # Liste et création des commentaires d'une issue
+    # GET /api/projects/{project_id}/issues/{issue_id}/comments/ → Liste des commentaires
+    # POST /api/projects/{project_id}/issues/{issue_id}/comments/ → Créer un nouveau commentaire
+    path('projects/<int:project_pk>/issues/<int:issue_pk>/comments/', views.CommentViewSet.as_view({
+        'get': 'list',
+        'post': 'create'
+    }), name='issue_comments'),
+
+    # Gestion d'un commentaire spécifique
+    # GET /api/projects/{project_id}/issues/{issue_id}/comments/{comment_id}/ → Détail du commentaire
+    # PUT /api/projects/{project_id}/issues/{issue_id}/comments/{comment_id}/ → Modifier (auteur uniquement)
+    # PATCH /api/projects/{project_id}/issues/{issue_id}/comments/{comment_id}/ → Modifier (auteur uniquement)
+    # DELETE /api/projects/{project_id}/issues/{issue_id}/comments/{comment_id}/ → Supprimer (auteur uniquement)
+    path('projects/<int:project_pk>/issues/<int:issue_pk>/comments/<uuid:pk>/', views.CommentViewSet.as_view({
+        'get': 'retrieve',
+        'put': 'update',
+        'patch': 'partial_update',
+        'delete': 'destroy'
+    }), name='comment_detail'),
 ]

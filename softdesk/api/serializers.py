@@ -5,7 +5,7 @@ Gère la conversion entre les objets Python/Django et les formats JSON pour l'AP
 
 from rest_framework import serializers
 from django.contrib.auth import authenticate
-from .models import User, Project, Contributor, Issue
+from .models import User, Project, Contributor, Issue, Comment
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -353,3 +353,76 @@ class IssueUpdateSerializer(serializers.ModelSerializer):
 
         instance.save()
         return instance
+
+
+class CommentSerializer(serializers.ModelSerializer):
+    """
+    Serializer pour l'affichage et la gestion des commentaires
+    - Affiche les informations lisibles (noms au lieu d'IDs)
+    - UUID en lecture seule
+    """
+    author_username = serializers.CharField(source='author.username', read_only=True)
+    issue_name = serializers.CharField(source='issue.name', read_only=True)
+    project_name = serializers.CharField(source='issue.project.name', read_only=True)
+
+    class Meta:
+        model = Comment
+        fields = [
+            'id', 'description', 'issue', 'issue_name', 'project_name',
+            'author', 'author_username', 'created_time'
+        ]
+        read_only_fields = ['id', 'author', 'issue', 'created_time']
+
+
+class CommentCreateSerializer(serializers.ModelSerializer):
+    """
+    Serializer simplifié pour la création de commentaires
+    - Interface utilisateur simplifiée
+    - Validation de l'auteur comme contributeur
+    """
+
+    class Meta:
+        model = Comment
+        fields = ['description']
+
+    def validate(self, data):
+        """
+        Validation globale pour vérifier les permissions
+        """
+        # L'issue et l'auteur sont passés via le contexte
+        issue = self.context.get('issue')
+        author = self.context.get('request').user
+
+        if issue and author:
+            # Vérifier que l'auteur est contributeur du projet
+            if not issue.project.contributors.filter(user=author).exists():
+                raise serializers.ValidationError(
+                    "Vous devez être contributeur du projet pour commenter cette issue."
+                )
+
+        return data
+
+    def create(self, validated_data):
+        """
+        Création d'un commentaire avec gestion automatique de l'issue et auteur
+        """
+        issue = self.context['issue']
+        author = self.context['request'].user
+
+        comment = Comment.objects.create(
+            issue=issue,
+            author=author,
+            **validated_data
+        )
+        return comment
+
+
+class CommentUpdateSerializer(serializers.ModelSerializer):
+    """
+    Serializer pour la mise à jour des commentaires
+    - Seule la description peut être modifiée
+    """
+
+    class Meta:
+        model = Comment
+        fields = ['description']

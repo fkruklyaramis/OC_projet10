@@ -35,6 +35,16 @@
 | PATCH | `/api/projects/{id}/issues/{issue_id}/` | Modifier partiellement une issue | Auteur issue/projet |
 | DELETE | `/api/projects/{id}/issues/{issue_id}/` | Supprimer une issue | Auteur issue/projet |
 
+## Routes Comments
+| Méthode | URL | Description | Permissions |
+|---------|-----|-------------|-------------|
+| GET | `/api/projects/{id}/issues/{issue_id}/comments/` | Liste des commentaires de l'issue | Contributeur du projet |
+| POST | `/api/projects/{id}/issues/{issue_id}/comments/` | Créer un nouveau commentaire | Contributeur du projet |
+| GET | `/api/projects/{id}/issues/{issue_id}/comments/{uuid}/` | Détail d'un commentaire | Contributeur du projet |
+| PUT | `/api/projects/{id}/issues/{issue_id}/comments/{uuid}/` | Modifier complètement un commentaire | Auteur commentaire |
+| PATCH | `/api/projects/{id}/issues/{issue_id}/comments/{uuid}/` | Modifier partiellement un commentaire | Auteur commentaire |
+| DELETE | `/api/projects/{id}/issues/{issue_id}/comments/{uuid}/` | Supprimer un commentaire | Auteur commentaire |
+
 ## Exemples de requêtes
 
 ### 1. Inscription
@@ -141,6 +151,40 @@ DELETE /api/projects/1/issues/1/
 Authorization: Bearer YOUR_ACCESS_TOKEN
 ```
 
+### 11. Créer un commentaire
+```http
+POST /api/projects/1/issues/1/comments/
+Content-Type: application/json
+Authorization: Bearer YOUR_ACCESS_TOKEN
+
+{
+    "description": "Je pense que ce bug vient de la validation des formulaires. Il faudrait vérifier les champs email."
+}
+```
+
+### 12. Lister les commentaires d'une issue
+```http
+GET /api/projects/1/issues/1/comments/
+Authorization: Bearer YOUR_ACCESS_TOKEN
+```
+
+### 13. Modifier un commentaire
+```http
+PATCH /api/projects/1/issues/1/comments/550e8400-e29b-41d4-a716-446655440000/
+Content-Type: application/json
+Authorization: Bearer YOUR_ACCESS_TOKEN
+
+{
+    "description": "Après investigation, le bug vient effectivement de la validation email. J'ai trouvé la solution."
+}
+```
+
+### 14. Supprimer un commentaire
+```http
+DELETE /api/projects/1/issues/1/comments/550e8400-e29b-41d4-a716-446655440000/
+Authorization: Bearer YOUR_ACCESS_TOKEN
+```
+
 ## Authentification JWT
 
 Toutes les routes (sauf auth) nécessitent un token JWT dans le header :
@@ -180,9 +224,10 @@ Authorization: Bearer YOUR_ACCESS_TOKEN
 ### Niveaux d'accès :
 1. **Public** : Routes d'authentification
 2. **Authentifié** : Création de projets
-3. **Contributeur** : Lecture des projets/contributeurs/issues, création d'issues
+3. **Contributeur** : Lecture des projets/contributeurs/issues/comments, création d'issues et comments
 4. **Auteur** : Modification/suppression des projets, gestion des contributeurs
 5. **Auteur issue/projet** : Modification/suppression des issues
+6. **Auteur commentaire** : Modification/suppression des commentaires
 
 ### Règles spéciales :
 - L'auteur d'un projet devient automatiquement contributeur
@@ -190,3 +235,6 @@ Authorization: Bearer YOUR_ACCESS_TOKEN
 - Seuls les contributeurs voient les projets dans la liste
 - Les issues ne peuvent être assignées qu'aux contributeurs du projet
 - Seul l'auteur d'une issue ou l'auteur du projet peut modifier/supprimer l'issue
+- Seul l'auteur d'un commentaire peut modifier/supprimer son commentaire
+- Les commentaires utilisent des UUID comme identifiants uniques
+- Les commentaires sont triés par date de création (plus récent en premier)

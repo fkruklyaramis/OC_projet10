@@ -2,6 +2,7 @@ from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.core.exceptions import ValidationError
 from datetime import date
+import uuid
 
 
 class User(AbstractUser):
@@ -240,4 +241,65 @@ class Issue(models.Model):
             if not self.project.contributors.filter(user=self.assignee).exists():
                 raise ValidationError(
                     "L'utilisateur assigné doit être contributeur du projet."
+                )
+
+
+class Comment(models.Model):
+    """
+    Modèle Comment - Définit les commentaires d'une issue
+    Facilite la communication entre contributeurs sur les problèmes
+    """
+
+    # Identifiant unique UUID pour référencer le commentaire
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+        verbose_name="Identifiant unique"
+    )
+
+    # Description du commentaire
+    description = models.TextField(
+        verbose_name="Description du commentaire"
+    )
+
+    # Relation avec l'issue
+    issue = models.ForeignKey(
+        Issue,
+        on_delete=models.CASCADE,
+        related_name='comments',
+        verbose_name="Issue"
+    )
+
+    # Auteur du commentaire (contributeur qui l'a écrit)
+    author = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='authored_comments',
+        verbose_name="Auteur"
+    )
+
+    # Horodatage
+    created_time = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="Date de création"
+    )
+
+    class Meta:
+        verbose_name = "Commentaire"
+        verbose_name_plural = "Commentaires"
+        ordering = ['-created_time']
+
+    def __str__(self):
+        return f"Commentaire de {self.author.username} sur {self.issue.name}"
+
+    def clean(self):
+        """
+        Validation personnalisée pour vérifier que l'auteur est contributeur du projet
+        """
+        super().clean()
+        if self.author and self.issue and self.issue.project:
+            if not self.issue.project.contributors.filter(user=self.author).exists():
+                raise ValidationError(
+                    "L'auteur du commentaire doit être contributeur du projet."
                 )
