@@ -6,7 +6,7 @@
 
 ```bash
 # Cloner le projet
-git clone <votre-repo>
+git clone https://github.com/fkruklyaramis/OC_projet10.git
 cd OC_projet10
 
 # Installer les dépendances
