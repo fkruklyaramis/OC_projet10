@@ -384,8 +384,19 @@ Une fois le conteneur lancé :
 ## 🛠️ Caractéristiques techniques
 
 ### Stack technologique :
-![Static Badge](https://img.shields.io/badge/python-3.12-green?style=flat-square)
-![Static Badge](https://img.shields.io/badge/Django-5.2.3-blue?style=flat-square)   ![Static Badge](https://img.shields.io/badge/Django-%20REST_Framework-white?style=flat-square) ![Static Badge](https://img.shields.io/badge/Authentification%20-%20JWT-yellow?style=flat-square)![Static Badge](https://img.shields.io/badge/Documentation-Swagger%2FOpenAPI-fa89cb?style=flat-square) ![Static Badge](https://img.shields.io/badge/Base%20de%20donn%C3%A9es-SQLite-b2eddc?style=flat-square)![Static Badge](https://img.shields.io/badge/Containerisation-Docker-ffefa6?style=flat-square)
+![Static Badge](https://img.shields.io/badge/python-3.12-green?style=flat-square?style=for-the-badge)
+
+![Static Badge](https://img.shields.io/badge/Django-5.2.3-blue?style=flat-square?style=for-the-badge)
+
+![Static Badge](https://img.shields.io/badge/Django-%20REST_Framework-white?style=flat-square?style=for-the-badge)
+
+![Static Badge](https://img.shields.io/badge/Authentification%20-%20JWT-yellow?style=flat-square?style=for-the-badge)
+
+![Static Badge](https://img.shields.io/badge/Documentation-Swagger%2FOpenAPI-fa89cb?style=flat-square?style=for-the-badge)
+
+![Static Badge](https://img.shields.io/badge/Base%20de%20donn%C3%A9es-SQLite-b2eddc?style=flat-square?style=for-the-badge)
+
+![Static Badge](https://img.shields.io/badge/Containerisation-Docker-ffefa6?style=flat-square?style=for-the-badge)
 
 
 
