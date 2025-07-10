@@ -93,6 +93,13 @@ docker stop softdesk
 | PATCH | `/api/projects/{id}/issues/{issue_id}/comments/{uuid}/` | Modifier partiellement un commentaire | Auteur commentaire |
 | DELETE | `/api/projects/{id}/issues/{issue_id}/comments/{uuid}/` | Supprimer un commentaire | Auteur commentaire |
 
+## Routes RGPD (Conformité GDPR)
+| Méthode | URL | Description | Permissions |
+|---------|-----|-------------|-------------|
+| GET | `/api/gdpr/export-my-data/` | Exporter toutes mes données personnelles (Article 15) | Utilisateur authentifié |
+| DELETE | `/api/gdpr/delete-my-account/` | Supprimer définitivement mon compte (Article 17) | Utilisateur authentifié |
+
+
 ## Exemples de requêtes
 
 ### 1. Inscription
@@ -233,6 +240,22 @@ DELETE /api/projects/1/issues/1/comments/550e8400-e29b-41d4-a716-446655440000/
 Authorization: Bearer YOUR_ACCESS_TOKEN
 ```
 
+## Exemples RGPD (Conformité GDPR)
+
+### 15. Exporter mes données personnelles (RGPD Article 15)
+```http
+GET /api/gdpr/export-my-data/
+Authorization: Bearer YOUR_ACCESS_TOKEN
+```
+
+### 16. Supprimer définitivement mon compte (RGPD Article 17)
+```http
+DELETE /api/gdpr/delete-my-account/
+Authorization: Bearer YOUR_ACCESS_TOKEN
+```
+
+**⚠️ ATTENTION :** Cette action est **irréversible** ! Toutes vos données personnelles seront définitivement supprimées et vos contenus (projets, issues, commentaires) seront anonymisés.
+
 ## Authentification JWT
 
 Toutes les routes (sauf auth) nécessitent un token JWT dans le header :
@@ -286,6 +309,13 @@ Authorization: Bearer YOUR_ACCESS_TOKEN
 - Seul l'auteur d'un commentaire peut modifier/supprimer son commentaire
 - Les commentaires utilisent des UUID comme identifiants uniques
 - Les commentaires sont triés par date de création (plus récent en premier)
+
+### Règles RGPD :
+- **Droit d'accès (Article 15)** : Export complet des données personnelles
+- **Droit à l'oubli (Article 17)** : Suppression définitive et anonymisation
+- **Âge minimum** : 15 ans minimum pour créer un compte (contrôle automatique)
+- **Consentements** : Acceptation explicite pour contact et partage de données
+- **Anonymisation** : Préservation de l'intégrité des données après suppression utilisateur
 
 ## 📚 Documentation API Interactive (Swagger)
 
