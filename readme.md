@@ -349,7 +349,7 @@ Valeur à saisir dans "Authorize" : Bearer YOUR_ACCESS_TOKEN
 
 ### Dockerfile inclus
 
-Le projet inclut un [`Dockerfile`](./Dockerfile) optimisé pour un déploiement simple.
+Le projet inclut un Dockerfile optimisé pour un déploiement simple.
 
 **📄 Voir le fichier complet :** [`Dockerfile`](./Dockerfile)
 
@@ -384,11 +384,10 @@ Une fois le conteneur lancé :
 ## 🛠️ Caractéristiques techniques
 
 ### Stack technologique :
-- **Backend** : Django 5.2.3 + Django REST Framework
-- **Authentification** : JWT (djangorestframework-simplejwt)
-- **Documentation** : Swagger/OpenAPI (drf-yasg)
-- **Base de données** : SQLite (développement)
-- **Containerisation** : Docker
+![Static Badge](https://img.shields.io/badge/python-3.12-green?style=flat-square)
+![Static Badge](https://img.shields.io/badge/Django-5.2.3-blue?style=flat-square)   ![Static Badge](https://img.shields.io/badge/Django-%20REST_Framework-white?style=flat-square) ![Static Badge](https://img.shields.io/badge/Authentification%20-%20JWT-yellow?style=flat-square)![Static Badge](https://img.shields.io/badge/Documentation-Swagger%2FOpenAPI-fa89cb?style=flat-square) ![Static Badge](https://img.shields.io/badge/Base%20de%20donn%C3%A9es-SQLite-b2eddc?style=flat-square)![Static Badge](https://img.shields.io/badge/Containerisation-Docker-ffefa6?style=flat-square)
+
+
 
 ### Architecture :
 - **API RESTful** avec routes hiérarchiques
