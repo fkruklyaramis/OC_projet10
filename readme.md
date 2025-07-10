@@ -349,25 +349,10 @@ Valeur à saisir dans "Authorize" : Bearer YOUR_ACCESS_TOKEN
 
 ### Dockerfile inclus
 
-Le projet inclut un `Dockerfile` optimisé pour un déploiement simple :
+Le projet inclut un [`Dockerfile`](./Dockerfile) optimisé pour un déploiement simple.
 
-```dockerfile
-FROM python:3.12-slim
+**📄 Voir le fichier complet :** [`Dockerfile`](./Dockerfile)
 
-WORKDIR /app
-
-# Installer les dépendances
-COPY Pipfile Pipfile.lock ./
-RUN pip install pipenv && pipenv install --system --deploy
-
-# Copier le code source
-COPY . .
-WORKDIR /app/softdesk
-
-# Exposer le port et lancer le serveur
-EXPOSE 8000
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
-```
 
 ### Commandes Docker
 
