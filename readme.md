@@ -143,6 +143,9 @@ DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
 
 ## Exemples de requêtes
 
+<details>
+<summary>📋 <strong>Cliquez pour voir tous les exemples de requêtes</strong></summary>
+
 ### 1. Inscription
 ```http
 POST /api/auth/register/
@@ -312,6 +315,8 @@ Authorization: Bearer YOUR_ACCESS_TOKEN
 ```
 
 **⚠️ ATTENTION :** Cette action est **irréversible** ! Toutes vos données personnelles seront définitivement supprimées ainsi que tous vos projets, issues et commentaires créés.
+
+</details>
 
 ## Authentification JWT
 
