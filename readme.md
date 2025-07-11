@@ -335,7 +335,7 @@ DELETE /api/gdpr/delete-my-account/
 Authorization: Bearer YOUR_ACCESS_TOKEN
 ```
 
-**⚠️ ATTENTION :** Cette action est **irréversible** ! Toutes vos données personnelles seront définitivement supprimées et vos contenus (projets, issues, commentaires) seront anonymisés.
+**⚠️ ATTENTION :** Cette action est **irréversible** ! Toutes vos données personnelles seront définitivement supprimées ainsi que tous vos projets, issues et commentaires créés.
 
 ## Authentification JWT
 
@@ -414,7 +414,7 @@ Authorization: Bearer YOUR_ACCESS_TOKEN
 - **Droit à l'oubli (Article 17)** : Suppression définitive et anonymisation
 - **Âge minimum** : 15 ans minimum pour créer un compte (contrôle automatique)
 - **Consentements** : Acceptation explicite pour contact et partage de données
-- **Anonymisation** : Préservation de l'intégrité des données après suppression utilisateur
+- **Anonymisation** : Suppression complète des données pour préserver l'intégrité de la base de données
 
 ## 📚 Documentation API Interactive (Swagger)
 

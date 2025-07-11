@@ -600,9 +600,9 @@ class GDPRViewSet(viewsets.ViewSet):
             },
             'projects_authored': list(user.authored_projects.values('id', 'name', 'created_time')),
             'contributions': list(user.contributions.values('project__name', 'created_time')),
-            'issues_authored': list(user.authored_issues.values('title', 'created_time', 'project__name')),
-            'issues_assigned': list(user.assigned_issues.values('title', 'created_time', 'project__name')),
-            'comments_authored': list(user.authored_comments.values('description', 'created_time', 'issue__title')),
+            'issues_authored': list(user.authored_issues.values('name', 'created_time', 'project__name')),
+            'issues_assigned': list(user.assigned_issues.values('name', 'created_time', 'project__name')),
+            'comments_authored': list(user.authored_comments.values('description', 'created_time', 'issue__name')),
             'export_date': timezone.now().isoformat(),
             'rgpd_notice': 'Données exportées conformément à l\'Article 15 du RGPD'
         }
@@ -620,23 +620,17 @@ class GDPRViewSet(viewsets.ViewSet):
         """RGPD: Droit à l'oubli - Article 17"""
         user = request.user
 
-        # RGPD: Anonymisation plutôt que suppression pour préserver l'intégrité des données
+        # RGPD: Suppression conformément à l'Article 17
+        # Note: Suppression complète car les modèles ne permettent pas l'anonymisation (contraintes NOT NULL)
         try:
-            # Anonymiser les commentaires (garder le contenu mais supprimer l'attribution)
-            user.authored_comments.update(author=None)
+            # Supprimer les commentaires de l'utilisateur
+            user.authored_comments.all().delete()
 
-            # Anonymiser les issues (garder le contenu mais supprimer l'attribution)
-            user.authored_issues.update(author=None, assignee=None)
+            # Supprimer les issues de l'utilisateur
+            user.authored_issues.all().delete()
 
-            # Gérer les projets créés par l'utilisateur
-            for project in user.authored_projects.all():
-                if project.contributors.count() == 1:
-                    # Si l'utilisateur est le seul contributeur, supprimer le projet
-                    project.delete()
-                else:
-                    # Sinon, anonymiser l'auteur
-                    project.author = None
-                    project.save()
+            # Supprimer tous les projets créés par l'utilisateur
+            user.authored_projects.all().delete()
 
             # Supprimer les contributions
             user.contributions.all().delete()
