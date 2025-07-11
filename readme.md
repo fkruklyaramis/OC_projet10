@@ -144,8 +144,8 @@ DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
 | GET | `/api/projects/{id}/issues/` | Liste des issues du projet | Contributeur du projet |
 | POST | `/api/projects/{id}/issues/` | Créer une nouvelle issue | Contributeur du projet |
 | GET | `/api/projects/{id}/issues/{issue_id}/` | Détail d'une issue | Contributeur du projet |
-| PUT | `/api/projects/{id}/issues/{issue_id}/` | Modifier complètement une issue | Auteur issue/projet |
-| PATCH | `/api/projects/{id}/issues/{issue_id}/` | Modifier partiellement une issue | Auteur issue/projet |
+| PUT | `/api/projects/{id}/issues/{issue_id}/` | Modifier complètement une issue (tous les champs requis) | Auteur issue/projet |
+| PATCH | `/api/projects/{id}/issues/{issue_id}/` | Modifier partiellement une issue (champs optionnels) | Auteur issue/projet |
 | DELETE | `/api/projects/{id}/issues/{issue_id}/` | Supprimer une issue | Auteur issue/projet |
 
 ## Routes Comments
@@ -253,7 +253,7 @@ GET /api/projects/1/issues/
 Authorization: Bearer YOUR_ACCESS_TOKEN
 ```
 
-### 9. Modifier une issue
+### 9. Modifier une issue (PATCH - partiel)
 ```http
 PATCH /api/projects/1/issues/1/
 Content-Type: application/json
@@ -262,6 +262,22 @@ Authorization: Bearer YOUR_ACCESS_TOKEN
 {
     "status": "IN_PROGRESS",
     "assignee_username": "alice"
+}
+```
+
+### 9bis. Modifier une issue (PUT - complet)
+```http
+PUT /api/projects/1/issues/1/
+Content-Type: application/json
+Authorization: Bearer YOUR_ACCESS_TOKEN
+
+{
+    "name": "Corriger le bug de connexion - MISE À JOUR",
+    "description": "Le système de connexion ne fonctionne pas correctement. Ajout de détails.",
+    "assignee_username": "alice",
+    "priority": "HIGH",
+    "tag": "BUG",
+    "status": "IN_PROGRESS"
 }
 ```
 
@@ -327,6 +343,24 @@ Toutes les routes (sauf auth) nécessitent un token JWT dans le header :
 ```
 Authorization: Bearer YOUR_ACCESS_TOKEN
 ```
+
+## 🔄 Différences PUT vs PATCH
+
+### PUT (Remplacement complet)
+- **Remplace entièrement** la ressource
+- **Tous les champs** doivent être fournis
+- Les champs omis sont réinitialisés à leur valeur par défaut
+- Utilisation : mise à jour complète d'un objet
+
+### PATCH (Modification partielle)  
+- **Modifie seulement** les champs fournis
+- Les champs non fournis **restent inchangés**
+- Plus efficace pour des modifications ciblées
+- Utilisation : changement de statut, assignation, etc.
+
+**Exemple pratique :**
+- **PATCH** : Changer juste le statut → `{"status": "IN_PROGRESS"}`
+- **PUT** : Fournir tous les champs → `{"name": "...", "description": "...", "status": "IN_PROGRESS", ...}`
 
 ## Paramètres des Issues
 

@@ -42,9 +42,15 @@ class IsContributor(permissions.BasePermission):
     """SECURITY: Permission - seuls les contributeurs du projet peuvent accéder"""
 
     def has_object_permission(self, request, view, obj):
+        # Gérer les différents types d'objets
         if hasattr(obj, 'project'):
+            # Pour les Issues : obj.project
             project = obj.project
+        elif hasattr(obj, 'issue'):
+            # Pour les Comments : obj.issue.project
+            project = obj.issue.project
         else:
+            # Pour les Projects : obj lui-même
             project = obj
         return project.contributors.filter(user=request.user).exists()
 
@@ -314,10 +320,13 @@ class IssueViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         try:
             project = self.get_project()
-            serializer = IssueCreateSerializer(data=request.data)
+            serializer = IssueCreateSerializer(
+                data=request.data,
+                context={'project': project, 'request': request}
+            )
 
             if serializer.is_valid():
-                issue = serializer.save(project=project, author=request.user)
+                issue = serializer.save()
                 return Response(
                     IssueSerializer(issue).data,
                     status=status.HTTP_201_CREATED
@@ -459,10 +468,13 @@ class CommentViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         try:
             issue = self.get_issue()
-            serializer = CommentCreateSerializer(data=request.data)
+            serializer = CommentCreateSerializer(
+                data=request.data,
+                context={'issue': issue, 'request': request}
+            )
 
             if serializer.is_valid():
-                comment = serializer.save(issue=issue, author=request.user)
+                comment = serializer.save()
                 return Response(
                     CommentSerializer(comment).data,
                     status=status.HTTP_201_CREATED

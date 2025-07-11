@@ -84,11 +84,11 @@ urlpatterns = [
     }), name='comments-list'),
 
     # Détail, modification et suppression d'un commentaire
-    path('projects/<int:project_pk>/issues/<int:issue_pk>/comments/<int:pk>/', views.CommentViewSet.as_view({
-        'get': 'retrieve',       # GET /projects/{project_id}/issues/{issue_id}/comments/{comment_id}/
-        'put': 'update',         # PUT /projects/{project_id}/issues/{issue_id}/comments/{comment_id}/
-        'patch': 'partial_update',  # PATCH /projects/{project_id}/issues/{issue_id}/comments/{comment_id}/
-        'delete': 'destroy'      # DELETE /projects/{project_id}/issues/{issue_id}/comments/{comment_id}/
+    path('projects/<int:project_pk>/issues/<int:issue_pk>/comments/<uuid:pk>/', views.CommentViewSet.as_view({
+        'get': 'retrieve',       # GET /projects/{project_id}/issues/{issue_id}/comments/{comment_uuid}/
+        'put': 'update',         # PUT /projects/{project_id}/issues/{issue_id}/comments/{comment_uuid}/
+        'patch': 'partial_update',  # PATCH /projects/{project_id}/issues/{issue_id}/comments/{comment_uuid}/
+        'delete': 'destroy'      # DELETE /projects/{project_id}/issues/{issue_id}/comments/{comment_uuid}/
     }), name='comments-detail'),
 
 
