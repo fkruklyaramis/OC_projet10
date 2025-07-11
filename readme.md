@@ -2,7 +2,7 @@
 
 ## 🛠️ Installation et Démarrage
 
-### Option 1 : Installation locale avec Pipenv
+### Installation locale avec Pipenv
 
 ```bash
 # Cloner le projet
@@ -27,29 +27,6 @@ python manage.py createsuperuser
 
 # Lancer le serveur
 python manage.py runserver
-```
-
-### Option 2 : Installation avec Docker 🐳
-
-```bash
-# Cloner le projet
-git clone https://github.com/fkruklyaramis/OC_projet10.git
-cd OC_projet10
-
-# Configurer les variables d'environnement
-cp .env.example .env
-
-# Construire l'image Docker
-docker build -t softdesk-api .
-
-# Lancer le conteneur
-docker run -d --name softdesk -p 8000:8000 softdesk-api
-
-# Voir les logs (optionnel)
-docker logs -f softdesk
-
-# Arrêter le conteneur
-docker stop softdesk
 ```
 
 # ⚙️ Configuration
@@ -107,7 +84,6 @@ DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
 - ✅ **N'exposez jamais** votre fichier `.env` (déjà dans `.gitignore`)
 - ✅ **Utilisez** `DJANGO_DEBUG=False` en production
 
-**Dockerfile inclus** : Le projet contient un Dockerfile prêt à l'emploi pour une containerisation simple et efficace.
 
 ## 📚 Documentation Interactive
 
@@ -452,10 +428,16 @@ Le projet inclut un Dockerfile optimisé pour un déploiement simple.
 
 **📄 Voir le fichier complet :** [`Dockerfile`](./Dockerfile)
 
-
-### Commandes Docker
+#### Installation avec Docker 🐳
 
 ```bash
+# Cloner le projet
+git clone https://github.com/fkruklyaramis/OC_projet10.git
+cd OC_projet10
+
+# Configurer les variables d'environnement
+cp .env.example .env
+
 # Construction de l'image
 docker build -t softdesk-api .
 
