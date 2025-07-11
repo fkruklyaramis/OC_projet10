@@ -242,7 +242,18 @@ class ContributorViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_403_FORBIDDEN
                 )
 
-            contributor = self.get_object()
+            # Récupérer le contributeur par user_id (pas contributor_id)
+            user_id = kwargs.get('pk')  # L'URL contient user_id
+            try:
+                contributor = Contributor.objects.get(
+                    user_id=user_id,
+                    project=project
+                )
+            except Contributor.DoesNotExist:
+                return Response(
+                    {"error": "Cet utilisateur n'est pas contributeur de ce projet"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
 
             # Empêcher la suppression de l'auteur
             if contributor.user == project.author:
