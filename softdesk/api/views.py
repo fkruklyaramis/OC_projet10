@@ -42,7 +42,12 @@ from .permissions import IsContributor, IsAuthorOrReadOnly
 # ================================
 
 class RegisterView(generics.CreateAPIView):
-    """Inscription d'un nouvel utilisateur avec génération automatique de tokens JWT"""
+    """
+    Inscription d'un nouvel utilisateur avec génération automatique de tokens JWT.
+
+    Hérite de CreateAPIView pour créer un utilisateur et générer automatiquement
+    les tokens d'authentification JWT (refresh + access).
+    """
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [AllowAny]
@@ -67,7 +72,15 @@ class RegisterView(generics.CreateAPIView):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def login_view(request):
-    """Connexion utilisateur avec génération de tokens JWT"""
+    """
+    Connexion utilisateur avec génération de tokens JWT.
+
+    Args:
+        request: Requête HTTP contenant username et password
+
+    Returns:
+        Response: Données utilisateur et tokens JWT si succès, erreurs sinon
+    """
     serializer = LoginSerializer(data=request.data)
     if serializer.is_valid():
         user = serializer.validated_data['user']
@@ -85,7 +98,15 @@ def login_view(request):
 @profile_docs
 @api_view(['GET'])
 def user_profile(request):
-    """Profil de l'utilisateur connecté"""
+    """
+    Profil de l'utilisateur connecté.
+
+    Args:
+        request: Requête HTTP avec utilisateur authentifié
+
+    Returns:
+        Response: Données du profil utilisateur
+    """
     serializer = UserSerializer(request.user)
     return Response(serializer.data)
 
@@ -95,12 +116,22 @@ def user_profile(request):
 # ================================
 
 class ProjectViewSet(viewsets.ModelViewSet):
-    """ViewSet pour la gestion complète des projets collaboratifs"""
+    """
+    ViewSet pour la gestion complète des projets collaboratifs.
+
+    Fournit les opérations CRUD complètes pour les projets avec contrôle
+    d'accès basé sur les permissions de contributeur et d'auteur.
+    """
     serializer_class = ProjectSerializer
     permission_classes = [permissions.IsAuthenticated, IsContributor, IsAuthorOrReadOnly]
 
     def get_queryset(self):
-        """OPTIMISATION: Requêtes optimisées avec select_related et prefetch_related"""
+        """
+        OPTIMISATION: Requêtes optimisées avec select_related et prefetch_related.
+
+        Returns:
+            QuerySet: Projets où l'utilisateur est contributeur avec relations préchargées
+        """
         return Project.objects.filter(
             contributors__user=self.request.user
         ).select_related('author').prefetch_related(
@@ -152,19 +183,38 @@ class ProjectViewSet(viewsets.ModelViewSet):
 # ================================
 
 class ContributorViewSet(viewsets.ModelViewSet):
-    """ViewSet pour la gestion des contributeurs d'un projet"""
+    """
+    ViewSet pour la gestion des contributeurs d'un projet.
+
+    Permet d'ajouter et retirer des contributeurs d'un projet.
+    Seul l'auteur du projet peut gérer les contributeurs.
+    """
     serializer_class = ContributorSerializer
     permission_classes = [permissions.IsAuthenticated, IsContributor]
 
     def get_queryset(self):
-        """OPTIMISATION: Requêtes optimisées"""
+        """
+        OPTIMISATION: Requêtes optimisées.
+
+        Returns:
+            QuerySet: Contributeurs du projet avec relations préchargées
+        """
         project_id = self.kwargs['project_pk']
         return Contributor.objects.filter(
             project_id=project_id
         ).select_related('user', 'project')
 
     def get_project(self):
-        """Récupère le projet et vérifie les permissions"""
+        """
+        Récupère le projet et vérifie les permissions.
+
+        Returns:
+            Project: L'instance du projet si l'utilisateur est contributeur
+
+        Raises:
+            Http404: Si le projet n'existe pas
+            PermissionError: Si l'utilisateur n'est pas contributeur
+        """
         project_id = self.kwargs['project_pk']
         project = get_object_or_404(Project, id=project_id)
 
@@ -256,19 +306,38 @@ class ContributorViewSet(viewsets.ModelViewSet):
 # ================================
 
 class IssueViewSet(viewsets.ModelViewSet):
-    """ViewSet pour la gestion des issues dans un projet"""
+    """
+    ViewSet pour la gestion des issues dans un projet.
+
+    Fournit les opérations CRUD pour les issues avec contrôle d'accès.
+    Seuls les contributeurs peuvent voir les issues, seul l'auteur peut les modifier.
+    """
     serializer_class = IssueSerializer
     permission_classes = [permissions.IsAuthenticated, IsContributor]
 
     def get_queryset(self):
-        """OPTIMISATION: Requêtes optimisées"""
+        """
+        OPTIMISATION: Requêtes optimisées.
+
+        Returns:
+            QuerySet: Issues du projet avec relations préchargées
+        """
         project_id = self.kwargs['project_pk']
         return Issue.objects.filter(
             project_id=project_id
         ).select_related('author', 'assignee', 'project').prefetch_related('comments')
 
     def get_project(self):
-        """Récupère le projet et vérifie les permissions"""
+        """
+        Récupère le projet et vérifie les permissions.
+
+        Returns:
+            Project: L'instance du projet si l'utilisateur est contributeur
+
+        Raises:
+            Http404: Si le projet n'existe pas
+            PermissionError: Si l'utilisateur n'est pas contributeur
+        """
         project_id = self.kwargs['project_pk']
         project = get_object_or_404(Project, id=project_id)
 
@@ -401,19 +470,38 @@ class IssueViewSet(viewsets.ModelViewSet):
 # ================================
 
 class CommentViewSet(viewsets.ModelViewSet):
-    """ViewSet pour la gestion des commentaires sur une issue"""
+    """
+    ViewSet pour la gestion des commentaires sur une issue.
+
+    Permet aux contributeurs de commenter les issues d'un projet.
+    Seul l'auteur d'un commentaire peut le modifier ou le supprimer.
+    """
     serializer_class = CommentSerializer
     permission_classes = [permissions.IsAuthenticated, IsContributor]
 
     def get_queryset(self):
-        """OPTIMISATION: Requêtes optimisées"""
+        """
+        OPTIMISATION: Requêtes optimisées.
+
+        Returns:
+            QuerySet: Commentaires de l'issue avec relations préchargées
+        """
         issue_id = self.kwargs['issue_pk']
         return Comment.objects.filter(
             issue_id=issue_id
         ).select_related('author', 'issue__project')
 
     def get_issue(self):
-        """Récupère l'issue et vérifie les permissions"""
+        """
+        Récupère l'issue et vérifie les permissions.
+
+        Returns:
+            Issue: L'instance de l'issue si l'utilisateur est contributeur du projet
+
+        Raises:
+            Http404: Si le projet ou l'issue n'existe pas
+            PermissionError: Si l'utilisateur n'est pas contributeur du projet
+        """
         project_id = self.kwargs['project_pk']
         issue_id = self.kwargs['issue_pk']
 
@@ -549,13 +637,27 @@ class CommentViewSet(viewsets.ModelViewSet):
 # ================================
 
 class GDPRViewSet(viewsets.ViewSet):
-    """RGPD: Endpoints pour la conformité RGPD"""
+    """
+    RGPD: Endpoints pour la conformité RGPD.
+
+    Fournit les endpoints requis pour la conformité RGPD :
+    - Droit d'accès (Article 15) : export des données personnelles
+    - Droit à l'oubli (Article 17) : suppression du compte utilisateur
+    """
     permission_classes = [permissions.IsAuthenticated]
 
     @rgpd_export_docs
     @action(detail=False, methods=['get'])
     def export_my_data(self, request):
-        """RGPD: Droit d'accès - Article 15"""
+        """
+        RGPD: Droit d'accès - Article 15.
+
+        Args:
+            request: Requête HTTP avec utilisateur authentifié
+
+        Returns:
+            Response: Toutes les données personnelles de l'utilisateur en JSON
+        """
         user = request.user
 
         # Collecter toutes les données utilisateur
@@ -590,7 +692,18 @@ class GDPRViewSet(viewsets.ViewSet):
     @rgpd_delete_docs
     @action(detail=False, methods=['delete'])
     def delete_my_account(self, request):
-        """RGPD: Droit à l'oubli - Article 17"""
+        """
+        RGPD: Droit à l'oubli - Article 17.
+
+        Args:
+            request: Requête HTTP avec utilisateur authentifié
+
+        Returns:
+            Response: Confirmation de suppression ou erreur
+
+        Raises:
+            Exception: En cas d'erreur lors de la suppression
+        """
         user = request.user
 
         # RGPD: Suppression conformément à l'Article 17

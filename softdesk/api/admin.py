@@ -1,6 +1,8 @@
 """
 Configuration de l'interface d'administration Django pour l'API SoftDesk
-Définit l'affichage et la gestion des modèles dans l'admin Django
+
+Ce module définit la configuration de l'interface d'administration Django
+pour tous les modèles de l'application SoftDesk.
 """
 
 from django.contrib import admin
@@ -11,8 +13,10 @@ from .models import User, Project, Contributor, Issue, Comment
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
     """
-    Configuration de l'admin pour le modèle User personnalisé
-    Étend l'UserAdmin par défaut avec les champs RGPD
+    Configuration de l'admin pour le modèle User personnalisé.
+
+    Étend BaseUserAdmin pour inclure les champs RGPD spécifiques
+    à l'application (date_of_birth, consentements).
     """
     # Ajout des champs personnalisés aux fieldsets existants
     fieldsets = BaseUserAdmin.fieldsets + (
@@ -48,7 +52,10 @@ class UserAdmin(BaseUserAdmin):
 @admin.register(Project)
 class ProjectAdmin(admin.ModelAdmin):
     """
-    Configuration de l'admin pour le modèle Project
+    Configuration de l'admin pour le modèle Project.
+
+    Fournit une interface complète pour gérer les projets avec
+    affichage du nombre de contributeurs et filtres par type.
     """
     # Colonnes affichées dans la liste des projets
     list_display = ('name', 'type', 'author', 'contributors_count', 'created_time')
@@ -80,7 +87,15 @@ class ProjectAdmin(admin.ModelAdmin):
     list_per_page = 25
 
     def contributors_count(self, obj):
-        """Affiche le nombre de contributeurs"""
+        """
+        Calcule et affiche le nombre de contributeurs du projet.
+
+        Args:
+            obj (Project): Instance du modèle Project
+
+        Returns:
+            int: Nombre de contributeurs
+        """
         return obj.contributors.count()
     contributors_count.short_description = 'Contributeurs'
     contributors_count.admin_order_field = 'contributors'
@@ -89,7 +104,10 @@ class ProjectAdmin(admin.ModelAdmin):
 @admin.register(Contributor)
 class ContributorAdmin(admin.ModelAdmin):
     """
-    Configuration de l'admin pour le modèle Contributor
+    Configuration de l'admin pour le modèle Contributor.
+
+    Gère la relation many-to-many entre User et Project avec
+    prévention des doublons et autocomplete pour les performances.
     """
     # Colonnes affichées
     list_display = ('user', 'project', 'created_time')
@@ -122,6 +140,19 @@ class ContributorAdmin(admin.ModelAdmin):
 
     # Prévention des doublons via l'admin
     def get_readonly_fields(self, request, obj=None):
+        """
+        Configure les champs en lecture seule selon le contexte.
+
+        Empêche la modification de user et project après création
+        pour éviter les incohérences dans les relations.
+
+        Args:
+            request: Requête HTTP courante
+            obj (Contributor or None): Instance de Contributor (None lors de la création)
+
+        Returns:
+            tuple: Champs en lecture seule
+        """
         if obj:  # Si on modifie un contributeur existant
             return self.readonly_fields + ('user', 'project')
         return self.readonly_fields
@@ -130,8 +161,10 @@ class ContributorAdmin(admin.ModelAdmin):
 @admin.register(Issue)
 class IssueAdmin(admin.ModelAdmin):
     """
-    Configuration de l'admin pour le modèle Issue
-    Interface complète pour gérer les issues/tâches des projets
+    Configuration de l'admin pour le modèle Issue.
+
+    Interface complète pour gérer les issues/tâches avec workflow
+    de statuts et actions en lot pour la gestion de projet.
     """
     # Colonnes affichées dans la liste
     list_display = (
@@ -188,19 +221,46 @@ class IssueAdmin(admin.ModelAdmin):
     actions = ['mark_as_to_do', 'mark_as_in_progress', 'mark_as_finished']
 
     def mark_as_to_do(self, request, queryset):
-        """Action pour marquer les issues comme 'À faire'"""
+        """
+        Action en lot pour marquer les issues sélectionnées comme 'À faire'.
+
+        Args:
+            request: Requête HTTP de l'admin
+            queryset: Issues sélectionnées par l'utilisateur
+
+        Returns:
+            None: Affiche un message de confirmation via self.message_user
+        """
         updated = queryset.update(status='TO_DO')
         self.message_user(request, f'{updated} issue(s) marquée(s) comme "À faire".')
     mark_as_to_do.short_description = "Marquer comme 'À faire'"
 
     def mark_as_in_progress(self, request, queryset):
-        """Action pour marquer les issues comme 'En cours'"""
+        """
+        Action en lot pour marquer les issues sélectionnées comme 'En cours'.
+
+        Args:
+            request: Requête HTTP de l'admin
+            queryset: Issues sélectionnées par l'utilisateur
+
+        Returns:
+            None: Affiche un message de confirmation via self.message_user
+        """
         updated = queryset.update(status='IN_PROGRESS')
         self.message_user(request, f'{updated} issue(s) marquée(s) comme "En cours".')
     mark_as_in_progress.short_description = "Marquer comme 'En cours'"
 
     def mark_as_finished(self, request, queryset):
-        """Action pour marquer les issues comme 'Terminé'"""
+        """
+        Action en lot pour marquer les issues sélectionnées comme 'Terminé'.
+
+        Args:
+            request: Requête HTTP de l'admin
+            queryset: Issues sélectionnées par l'utilisateur
+
+        Returns:
+            None: Affiche un message de confirmation via self.message_user
+        """
         updated = queryset.update(status='FINISHED')
         self.message_user(request, f'{updated} issue(s) marquée(s) comme "Terminé".')
     mark_as_finished.short_description = "Marquer comme 'Terminé'"
@@ -209,8 +269,10 @@ class IssueAdmin(admin.ModelAdmin):
 @admin.register(Comment)
 class CommentAdmin(admin.ModelAdmin):
     """
-    Configuration de l'admin pour le modèle Comment
-    Interface complète pour gérer les commentaires des issues
+    Configuration de l'admin pour le modèle Comment.
+
+    Interface pour gérer les commentaires des issues avec affichage
+    raccourci du contenu et protection des relations après création.
     """
     # Colonnes affichées dans la liste
     list_display = (
@@ -259,13 +321,31 @@ class CommentAdmin(admin.ModelAdmin):
     autocomplete_fields = ('issue', 'author')
 
     def short_description(self, obj):
-        """Affiche une version courte de la description"""
+        """
+        Affiche une version tronquée de la description du commentaire.
+
+        Args:
+            obj (Comment): Instance du modèle Comment
+
+        Returns:
+            str: Description tronquée à 50 caractères avec "..." si nécessaire
+        """
         return obj.description[:50] + "..." if len(obj.description) > 50 else obj.description
     short_description.short_description = "Description"
 
     def get_readonly_fields(self, request, obj=None):
         """
-        Rend l'issue et l'auteur en lecture seule lors de la modification
+        Configure les champs en lecture seule selon le contexte.
+
+        Empêche la modification de issue et author après création
+        pour préserver l'intégrité des discussions.
+
+        Args:
+            request: Requête HTTP courante
+            obj (Comment or None): Instance de Comment (None lors de la création)
+
+        Returns:
+            tuple: Champs en lecture seule
         """
         if obj:  # En modification
             return self.readonly_fields + ('issue', 'author')

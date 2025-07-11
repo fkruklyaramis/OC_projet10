@@ -31,8 +31,17 @@ class UserSerializer(serializers.ModelSerializer):
 
     def validate_date_of_birth(self, value):
         """
-        Validation spécifique pour date_of_birth
-        Obligatoire pour les inscriptions via API
+        Validation spécifique pour date_of_birth.
+        Obligatoire pour les inscriptions via API.
+
+        Args:
+            value: La date de naissance à valider (date ou None)
+
+        Returns:
+            date: La date validée
+
+        Raises:
+            ValidationError: Si la date est None ou invalide
         """
         if value is None:
             raise serializers.ValidationError("La date de naissance est obligatoire.")
@@ -40,10 +49,19 @@ class UserSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         """
-        Création d'un nouvel utilisateur
+        Création d'un nouvel utilisateur.
         - Extrait le mot de passe des données
         - Utilise create_user() pour le hash automatique du mot de passe
         - Respecte les validations RGPD (âge minimum 15 ans)
+
+        Args:
+            validated_data (dict): Les données validées du serializer
+
+        Returns:
+            User: L'instance utilisateur créée
+
+        Raises:
+            ValidationError: Si la validation RGPD échoue ou autres erreurs
         """
         from django.core.exceptions import ValidationError
 
@@ -72,10 +90,19 @@ class LoginSerializer(serializers.Serializer):
 
     def validate(self, data):
         """
-        Validation globale des données de connexion
+        Validation globale des données de connexion.
         - Vérifie que username et password sont fournis
         - Authentifie l'utilisateur avec Django
         - Vérifie que le compte est actif
+
+        Args:
+            data (dict): Dictionnaire contenant username et password
+
+        Returns:
+            dict: Données validées avec l'objet 'user' ajouté
+
+        Raises:
+            ValidationError: Si identifiants invalides ou compte désactivé
         """
         username = data.get('username')
         password = data.get('password')
@@ -114,16 +141,28 @@ class ProjectSerializer(serializers.ModelSerializer):
 
     def get_contributors_count(self, obj):
         """
-        Méthode pour calculer le nombre de contributeurs
-        Utilisée par le SerializerMethodField 'contributors_count'
+        Méthode pour calculer le nombre de contributeurs.
+        Utilisée par le SerializerMethodField 'contributors_count'.
+
+        Args:
+            obj (Project): L'instance du projet
+
+        Returns:
+            int: Le nombre de contributeurs du projet
         """
         return obj.contributors.count()
 
     def create(self, validated_data):
         """
-        Création d'un nouveau projet
+        Création d'un nouveau projet.
         - L'auteur devient automatiquement l'utilisateur connecté
         - L'ajout comme contributeur est géré dans la vue
+
+        Args:
+            validated_data (dict): Les données validées du projet
+
+        Returns:
+            Project: L'instance du projet créé
         """
         # L'auteur est automatiquement défini comme l'utilisateur connecté
         validated_data['author'] = self.context['request'].user
@@ -149,8 +188,17 @@ class ContributorSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         """
-        Validation pour éviter les contributeurs en double
-        Vérifie qu'un utilisateur n'est pas déjà contributeur du même projet
+        Validation pour éviter les contributeurs en double.
+        Vérifie qu'un utilisateur n'est pas déjà contributeur du même projet.
+
+        Args:
+            data (dict): Données contenant 'user' et 'project'
+
+        Returns:
+            dict: Les données validées
+
+        Raises:
+            ValidationError: Si l'utilisateur est déjà contributeur
         """
         # Vérifier que l'utilisateur n'est pas déjà contributeur
         if Contributor.objects.filter(user=data['user'], project=data['project']).exists():
@@ -176,9 +224,18 @@ class ContributorCreateSerializer(serializers.ModelSerializer):
 
     def validate_username(self, value):
         """
-        Validation du username fourni
+        Validation du username fourni.
         - Vérifie que l'utilisateur existe en base de données
         - Retourne l'objet User pour la création
+
+        Args:
+            value (str): Le nom d'utilisateur à valider
+
+        Returns:
+            User: L'instance utilisateur trouvée
+
+        Raises:
+            ValidationError: Si l'utilisateur n'existe pas
         """
         try:
             user = User.objects.get(username=value)
@@ -188,10 +245,19 @@ class ContributorCreateSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         """
-        Création d'un nouveau contributeur
+        Création d'un nouveau contributeur.
         - Récupère l'utilisateur depuis le username validé
         - Le projet est passé directement depuis la vue via save(project=project)
         - Vérifie qu'il n'est pas déjà contributeur
+
+        Args:
+            validated_data (dict): Données contenant 'username' et 'project'
+
+        Returns:
+            Contributor: L'instance contributeur créée
+
+        Raises:
+            ValidationError: Si l'utilisateur est déjà contributeur
         """
         user = validated_data.pop('username')  # Récupère l'objet User validé
         project = validated_data.pop('project')  # Récupère le projet depuis save()
@@ -232,7 +298,11 @@ class IssueSerializer(serializers.ModelSerializer):
 
     def __init__(self, *args, **kwargs):
         """
-        Initialisation dynamique pour limiter les assignés aux contributeurs du projet
+        Initialisation dynamique pour limiter les assignés aux contributeurs du projet.
+
+        Args:
+            *args: Arguments positionnels du serializer parent
+            **kwargs: Arguments nommés du serializer parent
         """
         super().__init__(*args, **kwargs)
 
@@ -246,7 +316,16 @@ class IssueSerializer(serializers.ModelSerializer):
 
     def validate_assignee(self, value):
         """
-        Validation pour s'assurer que l'assigné est contributeur du projet
+        Validation pour s'assurer que l'assigné est contributeur du projet.
+
+        Args:
+            value (User): L'utilisateur à assigner ou None
+
+        Returns:
+            User: L'utilisateur validé ou None
+
+        Raises:
+            ValidationError: Si l'assigné n'est pas contributeur du projet
         """
         if value and 'project' in self.context:
             project = self.context['project']
@@ -279,7 +358,16 @@ class IssueCreateSerializer(serializers.ModelSerializer):
 
     def validate_assignee_username(self, value):
         """
-        Validation du username de l'assigné
+        Validation du username de l'assigné.
+
+        Args:
+            value (str): Le nom d'utilisateur de l'assigné ou chaîne vide
+
+        Returns:
+            User: L'utilisateur trouvé ou None si valeur vide
+
+        Raises:
+            ValidationError: Si l'utilisateur n'existe pas ou n'est pas contributeur
         """
         if not value:  # Si vide, c'est OK
             return None
@@ -298,7 +386,13 @@ class IssueCreateSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         """
-        Création d'une Issue avec gestion de l'assigné
+        Création d'une Issue avec gestion de l'assigné.
+
+        Args:
+            validated_data (dict): Données validées incluant assignee_username
+
+        Returns:
+            Issue: L'instance issue créée
         """
         assignee = validated_data.pop('assignee_username', None)
         project = self.context['project']
@@ -335,7 +429,16 @@ class IssueUpdateSerializer(serializers.ModelSerializer):
 
     def validate_assignee_username(self, value):
         """
-        Validation du username de l'assigné pour la mise à jour
+        Validation du username de l'assigné pour la mise à jour.
+
+        Args:
+            value (str): Le nom d'utilisateur de l'assigné ou chaîne vide
+
+        Returns:
+            User: L'utilisateur trouvé ou None si valeur vide
+
+        Raises:
+            ValidationError: Si l'utilisateur n'existe pas ou n'est pas contributeur
         """
         if not value:  # Si vide, désassigner
             return None
@@ -354,7 +457,14 @@ class IssueUpdateSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         """
-        Mise à jour avec gestion de l'assigné
+        Mise à jour avec gestion de l'assigné.
+
+        Args:
+            instance (Issue): L'instance issue à mettre à jour
+            validated_data (dict): Les données validées
+
+        Returns:
+            Issue: L'instance issue mise à jour
         """
         assignee = validated_data.pop('assignee_username', 'no_change')
 
@@ -402,7 +512,16 @@ class CommentCreateSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         """
-        Validation globale pour vérifier les permissions
+        Validation globale pour vérifier les permissions.
+
+        Args:
+            data (dict): Les données à valider
+
+        Returns:
+            dict: Les données validées
+
+        Raises:
+            ValidationError: Si l'auteur n'est pas contributeur du projet
         """
         # L'issue et l'auteur sont passés via le contexte
         issue = self.context.get('issue')
@@ -419,7 +538,13 @@ class CommentCreateSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         """
-        Création d'un commentaire avec gestion automatique de l'issue et auteur
+        Création d'un commentaire avec gestion automatique de l'issue et auteur.
+
+        Args:
+            validated_data (dict): Les données validées du commentaire
+
+        Returns:
+            Comment: L'instance commentaire créée
         """
         issue = self.context['issue']
         author = self.context['request'].user

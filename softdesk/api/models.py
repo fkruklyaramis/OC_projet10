@@ -1,3 +1,10 @@
+"""
+Modèles de données pour l'API SoftDesk
+
+Ce module définit tous les modèles Django pour l'application de gestion
+de projets collaboratifs avec système de tickets et commentaires.
+"""
+
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.core.exceptions import ValidationError
@@ -7,8 +14,10 @@ import uuid
 
 class User(AbstractUser):
     """
-    Modèle User personnalisé héritant d'AbstractUser
-    Respecte les normes RGPD avec validation d'âge et choix de confidentialité
+    Modèle User personnalisé avec conformité RGPD.
+
+    Étend AbstractUser pour ajouter la validation d'âge minimum (15 ans)
+    et les consentements RGPD requis.
     """
     # Champs obligatoires pour RGPD
     date_of_birth = models.DateField(
@@ -39,7 +48,10 @@ class User(AbstractUser):
 
     def clean(self):
         """
-        Validation personnalisée pour vérifier l'âge minimum de 15 ans
+        Valide l'âge minimum de 15 ans selon les exigences RGPD.
+
+        Raises:
+            ValidationError: Si l'utilisateur a moins de 15 ans
         """
         super().clean()
         if self.date_of_birth:
@@ -54,7 +66,14 @@ class User(AbstractUser):
 
     def save(self, *args, **kwargs):
         """
-        Surcharge de save pour inclure la validation
+        Sauvegarde avec validation automatique de l'âge.
+
+        Args:
+            *args: Arguments positionnels pour la méthode save parente
+            **kwargs: Arguments nommés pour la méthode save parente
+
+        Raises:
+            ValidationError: Si la validation clean() échoue
         """
         self.clean()
         super().save(*args, **kwargs)
@@ -62,7 +81,13 @@ class User(AbstractUser):
     @property
     def age(self):
         """
-        Calcule l'âge de l'utilisateur
+        Calcule l'âge actuel de l'utilisateur.
+
+        Returns:
+            int or None: L'âge en années ou None si pas de date de naissance
+
+        Note:
+            Prend en compte les mois et jours pour un calcul précis
         """
         if self.date_of_birth:
             today = date.today()
@@ -72,6 +97,12 @@ class User(AbstractUser):
         return None
 
     def __str__(self):
+        """
+        Représentation textuelle de l'utilisateur.
+
+        Returns:
+            str: Le nom d'utilisateur (username)
+        """
         return self.username
 
     class Meta:
@@ -82,7 +113,10 @@ class User(AbstractUser):
 
 class Project(models.Model):
     """
-    Modèle Project - Définit les projets d'une application cliente
+    Modèle Project pour les projets collaboratifs.
+
+    Représente un projet de développement avec contributeurs,
+    issues et système de commentaires.
     """
     TYPE_CHOICES = [
         ('backend', 'Back-end'),
@@ -103,6 +137,12 @@ class Project(models.Model):
     created_time = models.DateTimeField(auto_now_add=True, verbose_name="Date de création")
 
     def __str__(self):
+        """
+        Représentation textuelle du projet.
+
+        Returns:
+            str: Le nom du projet
+        """
         return self.name
 
     class Meta:
@@ -113,9 +153,10 @@ class Project(models.Model):
 
 class Contributor(models.Model):
     """
-    Modèle Contributor - Lie un utilisateur à un projet
-    Un utilisateur peut contribuer à plusieurs projets
-    Un projet peut avoir plusieurs contributeurs
+    Modèle Contributor pour la relation many-to-many User-Project.
+
+    Associe un utilisateur à un projet en tant que contributeur.
+    Un utilisateur peut contribuer à plusieurs projets.
     """
     user = models.ForeignKey(
         User,
@@ -138,13 +179,21 @@ class Contributor(models.Model):
         ordering = ['-created_time']
 
     def __str__(self):
+        """
+        Représentation textuelle de la relation contributeur.
+
+        Returns:
+            str: Format "username - nom_projet"
+        """
         return f"{self.user.username} - {self.project.name}"
 
 
 class Issue(models.Model):
     """
-    Modèle Issue - Définit les problèmes/tâches d'un projet
-    Permet de planifier des fonctionnalités ou des bugs à régler
+    Modèle Issue pour les tickets/tâches d'un projet.
+
+    Représente une tâche, bug ou fonctionnalité à développer
+    avec workflow de statuts et assignation.
     """
 
     # Choix pour la priorité
@@ -232,11 +281,20 @@ class Issue(models.Model):
         ordering = ['-created_time']
 
     def __str__(self):
+        """
+        Représentation textuelle de l'issue.
+
+        Returns:
+            str: Format "nom_issue - nom_projet"
+        """
         return f"{self.name} - {self.project.name}"
 
     def clean(self):
         """
-        Validation personnalisée pour vérifier que l'assigné est contributeur du projet
+        Valide que l'assigné est contributeur du projet.
+
+        Raises:
+            ValidationError: Si l'assigné n'est pas contributeur du projet
         """
         super().clean()
         if self.assignee and self.project:
@@ -248,8 +306,10 @@ class Issue(models.Model):
 
 class Comment(models.Model):
     """
-    Modèle Comment - Définit les commentaires d'une issue
-    Facilite la communication entre contributeurs sur les problèmes
+    Modèle Comment pour les commentaires sur les issues.
+
+    Permet la communication entre contributeurs sur les issues
+    avec identifiant UUID unique.
     """
 
     # Identifiant unique UUID pour référencer le commentaire
@@ -293,11 +353,20 @@ class Comment(models.Model):
         ordering = ['-created_time']
 
     def __str__(self):
+        """
+        Représentation textuelle du commentaire.
+
+        Returns:
+            str: Format "Commentaire de username sur nom_issue"
+        """
         return f"Commentaire de {self.author.username} sur {self.issue.name}"
 
     def clean(self):
         """
-        Validation personnalisée pour vérifier que l'auteur est contributeur du projet
+        Valide que l'auteur est contributeur du projet de l'issue.
+
+        Raises:
+            ValidationError: Si l'auteur n'est pas contributeur du projet
         """
         super().clean()
         if self.author and self.issue and self.issue.project:
