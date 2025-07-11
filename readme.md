@@ -15,6 +15,9 @@ pipenv install
 # Activer l'environnement virtuel
 pipenv shell
 
+# Configurer les variables d'environnement
+cp .env.example .env
+
 # Appliquer les migrations
 cd softdesk
 python manage.py migrate
@@ -29,6 +32,13 @@ python manage.py runserver
 ### Option 2 : Installation avec Docker 🐳
 
 ```bash
+# Cloner le projet
+git clone https://github.com/fkruklyaramis/OC_projet10.git
+cd OC_projet10
+
+# Configurer les variables d'environnement
+cp .env.example .env
+
 # Construire l'image Docker
 docker build -t softdesk-api .
 
@@ -41,6 +51,61 @@ docker logs -f softdesk
 # Arrêter le conteneur
 docker stop softdesk
 ```
+
+# ⚙️ Configuration
+
+### Variables d'environnement requises
+
+Créez un fichier `.env` à la racine du projet avec les variables suivantes :
+
+```bash
+# .env
+# SÉCURITÉ : Clé secrète Django (OBLIGATOIRE)
+DJANGO_SECRET_KEY=votre-cle-secrete-super-longue-et-complexe-ici
+
+# DÉVELOPPEMENT : Mode debug (optionnel)
+DJANGO_DEBUG=True
+
+# PRODUCTION : Hosts autorisés (optionnel)
+DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,yourdomain.com
+```
+
+### 🔐 Génération d'une SECRET_KEY sécurisée
+
+**Méthode recommandée :**
+```bash
+# Activer votre environnement virtuel puis :
+python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+```
+
+**Exemple de SECRET_KEY générée :**
+```
+k2#f@9x$m8n&q4w5e6r7t8y9u0i1o2p3a4s5d6f7g8h9j0k1l2z3x4c5v6b7n8m9
+```
+
+### 📋 Fichier `.env.example` 
+
+Le projet inclut un fichier `.env.example` avec toutes les variables nécessaires :
+
+```bash
+# Variables d'environnement pour SoftDesk API
+
+# SÉCURITÉ (OBLIGATOIRE en production)
+DJANGO_SECRET_KEY=changez-cette-cle-en-production
+
+# DÉVELOPPEMENT
+DJANGO_DEBUG=True
+
+# PRODUCTION 
+DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
+```
+
+### ⚠️ Important - Sécurité
+
+- ✅ **Copiez** `.env.example` vers `.env`
+- ✅ **Modifiez** `DJANGO_SECRET_KEY` avec une clé unique
+- ✅ **N'exposez jamais** votre fichier `.env` (déjà dans `.gitignore`)
+- ✅ **Utilisez** `DJANGO_DEBUG=False` en production
 
 **Dockerfile inclus** : Le projet contient un Dockerfile prêt à l'emploi pour une containerisation simple et efficace.
 
