@@ -25,8 +25,18 @@ class UserSerializer(serializers.ModelSerializer):
                   'password', 'created_time']
         extra_kwargs = {
             'password': {'write_only': True},  # Sécurité : mot de passe jamais lu
-            'created_time': {'read_only': True}  # Auto-généré, pas modifiable
+            'created_time': {'read_only': True},  # Auto-généré, pas modifiable
+            'date_of_birth': {'required': True}  # Obligatoire pour l'API
         }
+
+    def validate_date_of_birth(self, value):
+        """
+        Validation spécifique pour date_of_birth
+        Obligatoire pour les inscriptions via API
+        """
+        if value is None:
+            raise serializers.ValidationError("La date de naissance est obligatoire.")
+        return value
 
     def create(self, validated_data):
         """

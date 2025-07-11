@@ -1,6 +1,6 @@
 # API SoftDesk - Documentation des Routes
 
-## � Installation et Démarrage
+## 🛠️ Installation et Démarrage
 
 ### Option 1 : Installation locale avec Pipenv
 
@@ -109,7 +109,7 @@ DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
 
 **Dockerfile inclus** : Le projet contient un Dockerfile prêt à l'emploi pour une containerisation simple et efficace.
 
-## �📚 Documentation Interactive
+## 📚 Documentation Interactive
 
 **Interface Swagger disponible sur :** http://localhost:8000/doc/
 

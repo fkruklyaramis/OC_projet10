@@ -12,6 +12,8 @@ class User(AbstractUser):
     """
     # Champs obligatoires pour RGPD
     date_of_birth = models.DateField(
+        null=True,
+        blank=True,
         verbose_name="Date de naissance",
         help_text="Requis pour vérifier l'âge minimum de 15 ans"
     )

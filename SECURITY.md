@@ -1,7 +1,5 @@
 # 🛡️ RAPPORT DE SÉCURITÉ ET GREEN CODE - API SoftDesk
 
-## 📋 Résumé Exécutif
-
 L'API SoftDesk respecte intégralement les **normes OWASP Top 10** et les **exigences RGPD**, tout en implémentant les principes du **Green Code** pour une application sécurisée, conforme et respectueuse de l'environnement.
 
 ---
@@ -485,6 +483,3 @@ L'application intègre des optimisations significatives réduisant son impact en
 
 *Ce rapport certifie que l'API SoftDesk respecte les plus hauts standards de sécurité, de conformité légale et de responsabilité environnementale.*
 
----
-
-*Rapport généré le {{ date.today().strftime('%d/%m/%Y') }} - Projet OpenClassrooms OC_projet10*
