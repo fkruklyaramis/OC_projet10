@@ -35,11 +35,20 @@ class UserSerializer(serializers.ModelSerializer):
         - Utilise create_user() pour le hash automatique du mot de passe
         - Respecte les validations RGPD (âge minimum 15 ans)
         """
+        from django.core.exceptions import ValidationError
+
         password = validated_data.pop('password')  # Retire le mot de passe des données
-        user = User.objects.create_user(**validated_data)  # Crée l'utilisateur
-        user.set_password(password)  # Hash le mot de passe
-        user.save()
-        return user
+
+        try:
+            user = User.objects.create_user(**validated_data)  # Crée l'utilisateur
+            user.set_password(password)  # Hash le mot de passe
+            user.save()
+            return user
+        except ValidationError as e:
+            # Transformer les erreurs du modèle en erreurs de serializer
+            raise serializers.ValidationError({"date_of_birth": str(e)})
+
+    # Validation d'âge gérée dans le modèle User.clean() - pas de duplication
 
 
 class LoginSerializer(serializers.Serializer):
