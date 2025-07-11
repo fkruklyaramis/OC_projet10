@@ -143,8 +143,8 @@ class ProjectViewSet(viewsets.ModelViewSet):
         # L'utilisateur connecté devient l'auteur
         project = serializer.save(author=request.user)
 
-        # Ajouter l'auteur comme contributeur
-        Contributor.objects.create(project=project, user=request.user)
+        # Ajouter l'auteur comme contributeur (éviter les doublons avec get_or_create)
+        Contributor.objects.get_or_create(project=project, user=request.user)
 
         return Response(
             ProjectSerializer(project).data,

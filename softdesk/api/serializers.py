@@ -104,14 +104,11 @@ class ProjectSerializer(serializers.ModelSerializer):
         """
         Création d'un nouveau projet
         - L'auteur devient automatiquement l'utilisateur connecté
-        - L'auteur est automatiquement ajouté comme contributeur
+        - L'ajout comme contributeur est géré dans la vue
         """
         # L'auteur est automatiquement défini comme l'utilisateur connecté
         validated_data['author'] = self.context['request'].user
         project = Project.objects.create(**validated_data)
-
-        # L'auteur devient automatiquement contributeur du projet
-        Contributor.objects.create(user=project.author, project=project)
         return project
 
 
@@ -174,12 +171,11 @@ class ContributorCreateSerializer(serializers.ModelSerializer):
         """
         Création d'un nouveau contributeur
         - Récupère l'utilisateur depuis le username validé
-        - Récupère le projet depuis le contexte (passé par la vue)
+        - Le projet est passé directement depuis la vue via save(project=project)
         - Vérifie qu'il n'est pas déjà contributeur
         """
         user = validated_data.pop('username')  # Récupère l'objet User validé
-        project = self.context['project']  # Récupère le projet depuis la vue
-        validated_data['user'] = user
+        project = validated_data.pop('project')  # Récupère le projet depuis save()
 
         # Double vérification : éviter les contributeurs en double
         if Contributor.objects.filter(user=user, project=project).exists():
