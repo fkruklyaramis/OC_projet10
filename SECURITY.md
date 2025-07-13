@@ -6,7 +6,7 @@ L'API SoftDesk respecte intégralement les **normes OWASP Top 10** et les **exig
 
 ## 🔐 1. CONFORMITÉ OWASP TOP 10
 
-### 1.1 Authentification (Authentication) - ✅ CONFORME
+### 1.1 Authentification
 
 #### **JWT (JSON Web Token) Sécurisé**
 
@@ -23,10 +23,10 @@ SIMPLE_JWT = {
 ```
 
 **Mesures de Sécurité :**
-- ✅ **Tokens d'accès courts** (60 min) - Limite l'exposition
-- ✅ **Rotation automatique** des refresh tokens - Prévient les attaques
-- ✅ **Algorithme HS256** - Signature cryptographique forte
-- ✅ **SECRET_KEY protégée** - Variables d'environnement
+- **Tokens d'accès courts** (60 min) - Limite l'exposition
+- **Rotation automatique** des refresh tokens - Prévient les attaques
+- **Algorithme HS256** - Signature cryptographique forte
+- **SECRET_KEY protégée** - Variables d'environnement
 
 #### **Validation Robuste des Identifiants**
 
@@ -49,11 +49,11 @@ def validate(self, data):
 ```
 
 **Protection contre :**
-- ✅ **Attaques par force brute** - Validation stricte
-- ✅ **Comptes compromis** - Vérification is_active
-- ✅ **Injection de données** - Validation d'entrée
+- **Attaques par force brute** - Limitation avec @ratelimit(key='ip', rate='5/m', method='POST') (non implémentée, necessite la mise en place d'un cache partagé pour stocker les ip/date/count)
+- **Comptes compromis** - Vérification is_active
+- **Injection de données** - Validation d'entrée stricte (protectecion grâce à l'ORM de django qui échape les paramètres) + Pas de sql brut dans le projet
 
-### 1.2 Autorisation (Authorization) - ✅ CONFORME
+### 1.2 Autorisation
 
 #### **Système de Permissions à Trois Niveaux**
 
@@ -91,7 +91,7 @@ class IsAuthorOrReadOnly(BasePermission):
 | **Commentaires** | Contributeur | Contributeur | Auteur commentaire | Auteur commentaire |
 | **Contributeurs** | Contributeur | Auteur projet | ❌ | Auteur projet |
 
-### 1.3 Contrôle d'Accès (Access Control) - ✅ CONFORME
+### 1.3 Contrôle d'Accès
 
 #### **Validation Granulaire des Accès**
 
@@ -126,7 +126,7 @@ def get_queryset(self):
     ).select_related('author').prefetch_related('contributors__user')
 ```
 
-### 1.4 Gestion des Dépendances - ✅ CONFORME
+### 1.4 Gestion des Dépendances
 
 #### **Pipenv pour la Sécurité**
 
@@ -140,17 +140,17 @@ drf-yasg = "~=1.21.0"
 python-decouple = "~=3.8"
 ```
 
-**Avantages Sécuritaires :**
-- ✅ **Versions épinglées** - Évite les mises à jour malveillantes
-- ✅ **Pipfile.lock** - Reproductibilité exacte
-- ✅ **Isolation virtuelle** - Environnement dédié
-- ✅ **Audit de sécurité** - `pipenv check` détecte les vulnérabilités
+**Avantages de sécu:**
+- **Versions épinglées** - Évite les mises à jour malveillantes
+- **Pipfile.lock** - Reproductibilité exacte
+- **Isolation virtuelle** - Environnement dédié
+- **Audit de sécurité** - `pipenv check` détecte les vulnérabilités
 
 ---
 
-## 🔒 2. CONFORMITÉ RGPD/GDPR
+## 🔒 2. CONFORMITÉ RGPD
 
-### 2.1 Droit d'Accès et Rectification (Article 15) - ✅ CONFORME
+### 2.1 Droit d'Accès et Rectification (Article 15)
 
 #### **Export Complet des Données Personnelles**
 
@@ -190,7 +190,7 @@ def export_my_data(self, request):
 path('auth/profile/', views.user_profile, name='auth-profile')  # GET/PUT/PATCH
 ```
 
-### 2.2 Droit à l'Oubli (Article 17) - ✅ CONFORME
+### 2.2 Droit à l'Oubli (Article 17)
 
 #### **Suppression Complète et Irréversible**
 
@@ -222,7 +222,7 @@ def delete_my_account(self, request):
         )
 ```
 
-### 2.3 Collecte du Consentement - ✅ CONFORME
+### 2.3 Collecte du Consentement
 
 #### **Consentements Explicites**
 
@@ -246,7 +246,7 @@ class User(AbstractUser):
     )
 ```
 
-### 2.4 Vérification d'Âge (15 ans minimum) - ✅ CONFORME
+### 2.4 Vérification d'Âge (15 ans minimum)
 
 #### **Validation Automatique**
 
@@ -269,27 +269,48 @@ def clean(self):
 
 ## 🌱 3. GREEN CODE & OPTIMISATION
 
-### 3.1 Optimisation des Requêtes Database - ✅ EXCELLENT
+### 3.1 Optimisation des Requêtes Database
 
-#### **Élimination du Problème N+1**
-
+#### Avec optimisation
 ```python
 # views.py - Requêtes optimisées
 def get_queryset(self):
     return Project.objects.filter(
         contributors__user=self.request.user
     ).select_related('author').prefetch_related(
-        'contributors__user',           # Évite N+1 sur contributeurs
-        'issues__author',              # Évite N+1 sur auteurs d'issues  
-        'issues__assignee',            # Évite N+1 sur assignés
-        'issues__comments__author'     # Évite N+1 sur auteurs de commentaires
+        'contributors__user',           
+        'issues__author',              
+        'issues__assignee',            
+        'issues__comments__author'     
     ).distinct()
+# Ce code génère environ 5-6 requêtes optimisées
+```
+
+
+#### Sans optimisation 
+```python
+projects = Project.objects.filter(contributors__user=user)  # 1 requête
+
+for project in projects:  # 5 projets
+    print(project.author.username)        # 5 requêtes (auteurs)
+    
+    for contributor in project.contributors.all():  # 3 contributeurs/projet 
+        print(contributor.user.username)   # 15 requêtes (contributeurs)
+    
+    for issue in project.issues.all():     # 4 issues/projet
+        print(issue.author.username)       # 20 requêtes (auteurs issues)
+        print(issue.assignee.username)     # 20 requêtes (assignés)
+        
+        for comment in issue.comments.all():  # 2 commentaires/issue
+            print(comment.author.username)     # 40 requêtes (auteurs commentaires)
+
+# TOTAL : 1 + 5 + 15 + 20 + 20 + 40 = 101 requêtes SQL
 ```
 
 **Impact Environnemental :**
-- ✅ **90% de réduction** des requêtes SQL
-- ✅ **Temps de réponse divisé par 10** 
-- ✅ **Consommation CPU/mémoire serveur réduite de 80%**
+- **90% de réductiondes requêtes SQL** 
+- **Temps de réponse divisé par 10** 
+- **Consommation CPU/mémoire serveur réduite de 80%**
 
 #### **Pagination pour Limiter les Transferts**
 
@@ -302,11 +323,11 @@ REST_FRAMEWORK = {
 ```
 
 **Bénéfices Green Code :**
-- ✅ **Limitation du transfert réseau** (20 items max par requête)
-- ✅ **Réduction de la bande passante** serveur/client
-- ✅ **Moins de charge sur les data centers**
+- **Limitation du transfert réseau** (20 items max par requête)
+- **Réduction de la bande passante** serveur/client
+- **Moins de charge sur les data centers**
 
-### 3.2 Optimisation du Code Source - ✅ TRÈS BON
+### 3.2 Optimisation du Code Source
 
 #### **Code Modulaire et Réutilisable**
 
@@ -335,11 +356,11 @@ class IssueUpdateSerializer(serializers.ModelSerializer):    # Mise à jour uniq
 ```
 
 **Impact Green Code :**
-- ✅ **Code plus maintenable** = moins de bugs = moins de correctifs
-- ✅ **Développement plus rapide** = moins de ressources développeur
-- ✅ **Tests plus ciblés** = CI/CD plus efficace
+- **Code plus maintenable** = moins de bugs = moins de correctifs
+- **Développement plus rapide** = moins de ressources développeur
+- **Tests plus ciblés** = CI/CD plus efficace
 
-### 3.3 Gestion Intelligente des Ressources - ✅ BON
+### 3.3 Gestion Intelligente des Ressources
 
 #### **Variables d'Environnement**
 
@@ -351,11 +372,11 @@ ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', '').split(',')
 ```
 
 **Avantages Environnementaux :**
-- ✅ **Pas de redéployement** pour changer la configuration
-- ✅ **Moins de ressources CI/CD** consommées
-- ✅ **Déploiements plus rapides et économes**
+- **Pas de redéployement** pour changer la configuration
+- **Moins de ressources CI/CD** consommées
+- **Déploiements plus rapides et économes**
 
-#### **Dockerisation Efficace**
+#### **Dockerisation **
 
 ```dockerfile
 # Dockerfile optimisé
@@ -373,7 +394,7 @@ RUN useradd --create-home --shell /bin/bash app
 USER app
 ```
 
-### 3.4 Métriques de Performance - ✅ EXCELLENT
+### 3.4 Métriques de Performance
 
 #### **Mesures d'Optimisation Concrètes**
 
